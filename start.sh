@@ -17,6 +17,49 @@ npm install
 npm run build
 cd ..
 
+# Setup PostgreSQL
+export PGDATA=/app/postgres_data
+export PGHOST=localhost
+export PGPORT=5432
+export PGUSER=admin
+export PGPASSWORD=password
+export PGDATABASE=cic_docflow
+
+echo "Setting up PostgreSQL..."
+if [ ! -d "$PGDATA" ]; then
+    echo "Initializing PostgreSQL database..."
+    mkdir -p "$PGDATA"
+    initdb -D "$PGDATA" --auth=trust
+fi
+
+echo "Starting PostgreSQL..."
+pg_ctl -D "$PGDATA" -l "$PGDATA/logfile" -o "-p $PGPORT" start
+
+echo "Waiting for PostgreSQL to be ready..."
+until pg_isready -h localhost -p $PGPORT; do
+  echo "Waiting for postgres..."
+  sleep 1
+done
+
+# Create User and Database
+# The user running this script is the superuser for the DB instance we just created.
+# We connect to 'postgres' database which is created by default.
+
+# Check if 'admin' role exists
+if ! psql -h localhost -p $PGPORT -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$PGUSER'" | grep -q 1; then
+    echo "Creating user $PGUSER..."
+    psql -h localhost -p $PGPORT -d postgres -c "CREATE USER $PGUSER WITH SUPERUSER PASSWORD '$PGPASSWORD';"
+fi
+
+# Check if database exists
+if ! psql -h localhost -p $PGPORT -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PGDATABASE'" | grep -q 1; then
+    echo "Creating database $PGDATABASE..."
+    psql -h localhost -p $PGPORT -d postgres -c "CREATE DATABASE $PGDATABASE OWNER $PGUSER;"
+fi
+
+echo "Applying schema..."
+psql -h localhost -p $PGPORT -U $PGUSER -d $PGDATABASE -f db/schema.sql
+
 # Start Backend
 echo "Starting Backend..."
 cd backend
