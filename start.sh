@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+# Deployment script to build and start the application with PostgreSQL
 echo "Starting deployment script..."
 
 # Build Frontend
