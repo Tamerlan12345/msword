@@ -1,0 +1,13 @@
+{
+  "name": "cic-docflow",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "start": "npm run start --workspace=backend"
+  }
+}
