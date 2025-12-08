@@ -19,6 +19,24 @@ npm run build
 cd ..
 
 # Setup PostgreSQL
+# Ensure PostgreSQL binaries are in the PATH
+if ! command -v initdb &> /dev/null; then
+    echo "initdb not found in PATH. Searching in /nix/store..."
+    # Find the bin directory containing initdb
+    # We use a loop to check each potential directory
+    for dir in $(ls -d /nix/store/*-postgresql-*/bin 2>/dev/null); do
+        if [ -x "$dir/initdb" ]; then
+            echo "Found PostgreSQL binaries at $dir"
+            export PATH="$dir:$PATH"
+            break
+        fi
+    done
+
+    if ! command -v initdb &> /dev/null; then
+        echo "WARNING: PostgreSQL binaries not found in PATH or /nix/store."
+    fi
+fi
+
 export PGDATA=/app/postgres_data
 export PGHOST=localhost
 export PGPORT=5432
