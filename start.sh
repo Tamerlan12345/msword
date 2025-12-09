@@ -22,8 +22,6 @@ cd ..
 # Ensure PostgreSQL binaries are in the PATH
 if ! command -v initdb &> /dev/null; then
     echo "initdb not found in PATH. Searching in /nix/store..."
-    # Find the bin directory containing initdb
-    # We use find to locate initdb as the directory name might vary
     if [ -d "/nix/store" ]; then
         INITDB_PATH=$(find /nix/store -name initdb -type f -executable -print -quit 2>/dev/null)
         if [ -n "$INITDB_PATH" ]; then
@@ -41,7 +39,6 @@ if ! command -v initdb &> /dev/null; then
         echo "Attempting to install PostgreSQL..."
         if command -v apt-get &> /dev/null; then
            echo "Detected apt-get. Trying to install postgresql..."
-           # We might not have sudo, but if we are root it works. If not, it fails.
            apt-get update && apt-get install -y postgresql || echo "Failed to install postgresql via apt-get"
         elif command -v apk &> /dev/null; then
            echo "Detected apk. Trying to install postgresql..."
@@ -52,7 +49,6 @@ if ! command -v initdb &> /dev/null; then
 
         # Check again
         if ! command -v initdb &> /dev/null; then
-             # Try to find it again, apt installs to /usr/lib/postgresql/x/bin sometimes not in path
              PG_UBUNTU_BIN=$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | head -n 1)
              if [ -n "$PG_UBUNTU_BIN" ]; then
                  export PATH="$PG_UBUNTU_BIN:$PATH"
@@ -74,16 +70,55 @@ export PGPASSWORD=password
 export PGDATABASE=cic_docflow
 
 echo "Setting up PostgreSQL..."
-if [ ! -d "$PGDATA" ]; then
+
+# Function to run command as postgres user if running as root
+run_as_postgres() {
+    local cmd="$1"
+    if [ "$(id -u)" = "0" ]; then
+        # Ensure postgres user exists
+        if ! id "postgres" &>/dev/null; then
+             echo "Creating postgres user..."
+             if command -v useradd &> /dev/null; then
+                 useradd -m -s /bin/bash postgres
+             elif command -v adduser &> /dev/null; then
+                 adduser -D postgres
+             else
+                 echo "Warning: Could not create postgres user. Continuing as root (might fail)..."
+             fi
+        fi
+
+        # Fix permissions on PGDATA
+        if [ -d "$PGDATA" ]; then
+            chown -R postgres:postgres "$PGDATA"
+            chmod 700 "$PGDATA"
+        else
+            mkdir -p "$PGDATA"
+            chown -R postgres:postgres "$PGDATA"
+            chmod 700 "$PGDATA"
+        fi
+
+        # Create logfile if needed so postgres can write to it
+        if [ ! -f "$PGDATA/logfile" ]; then
+            touch "$PGDATA/logfile"
+            chown postgres:postgres "$PGDATA/logfile"
+        fi
+
+        # Run as postgres user, preserving PATH
+        su postgres -c "export PATH='$PATH'; $cmd"
+    else
+        # Not running as root, just execute
+        eval "$cmd"
+    fi
+}
+
+if [ ! -d "$PGDATA" ] || [ -z "$(ls -A "$PGDATA")" ]; then
     echo "Initializing PostgreSQL database..."
     mkdir -p "$PGDATA"
-    initdb -D "$PGDATA" --auth=trust
+    run_as_postgres "initdb -D '$PGDATA' --auth=trust"
 fi
 
 echo "Starting PostgreSQL..."
-# Look for pg_ctl if not in path (it should be where initdb is)
 if ! command -v pg_ctl &> /dev/null; then
-    # Try to find it in same dir as initdb
     INITDB_LOC=$(command -v initdb)
     BIN_DIR=$(dirname "$INITDB_LOC")
     if [ -f "$BIN_DIR/pg_ctl" ]; then
@@ -91,7 +126,7 @@ if ! command -v pg_ctl &> /dev/null; then
     fi
 fi
 
-pg_ctl -D "$PGDATA" -l "$PGDATA/logfile" -o "-p $PGPORT" start
+run_as_postgres "pg_ctl -D '$PGDATA' -l '$PGDATA/logfile' -o '-p $PGPORT' start"
 
 echo "Waiting for PostgreSQL to be ready..."
 until pg_isready -h localhost -p $PGPORT; do
@@ -100,19 +135,24 @@ until pg_isready -h localhost -p $PGPORT; do
 done
 
 # Create User and Database
-# The user running this script is the superuser for the DB instance we just created.
-# We connect to 'postgres' database which is created by default.
+# Determine if we need to connect as postgres user
+DB_CONNECT_OPTS=""
+if [ "$(id -u)" = "0" ]; then
+    # If running as root, 'psql' usually tries to connect as 'root' or current user.
+    # We want to connect as 'postgres' superuser (created by initdb running as postgres).
+    DB_CONNECT_OPTS="-U postgres"
+fi
 
 # Check if 'admin' role exists
-if ! psql -h localhost -p $PGPORT -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$PGUSER'" | grep -q 1; then
+if ! psql -h localhost -p $PGPORT $DB_CONNECT_OPTS -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$PGUSER'" | grep -q 1; then
     echo "Creating user $PGUSER..."
-    psql -h localhost -p $PGPORT -d postgres -c "CREATE USER $PGUSER WITH SUPERUSER PASSWORD '$PGPASSWORD';"
+    psql -h localhost -p $PGPORT $DB_CONNECT_OPTS -d postgres -c "CREATE USER $PGUSER WITH SUPERUSER PASSWORD '$PGPASSWORD';"
 fi
 
 # Check if database exists
-if ! psql -h localhost -p $PGPORT -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PGDATABASE'" | grep -q 1; then
+if ! psql -h localhost -p $PGPORT $DB_CONNECT_OPTS -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PGDATABASE'" | grep -q 1; then
     echo "Creating database $PGDATABASE..."
-    psql -h localhost -p $PGPORT -d postgres -c "CREATE DATABASE $PGDATABASE OWNER $PGUSER;"
+    psql -h localhost -p $PGPORT $DB_CONNECT_OPTS -d postgres -c "CREATE DATABASE $PGDATABASE OWNER $PGUSER;"
 fi
 
 echo "Applying schema..."
