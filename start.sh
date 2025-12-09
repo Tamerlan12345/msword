@@ -97,12 +97,6 @@ run_as_postgres() {
             chmod 700 "$PGDATA"
         fi
 
-        # Create logfile if needed so postgres can write to it
-        if [ ! -f "$PGDATA/logfile" ]; then
-            touch "$PGDATA/logfile"
-            chown postgres:postgres "$PGDATA/logfile"
-        fi
-
         # Run as postgres user, preserving PATH
         su postgres -c "export PATH='$PATH'; $cmd"
     else
