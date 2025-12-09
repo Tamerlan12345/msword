@@ -23,17 +23,20 @@ cd ..
 if ! command -v initdb &> /dev/null; then
     echo "initdb not found in PATH. Searching in /nix/store..."
     # Find the bin directory containing initdb
-    # We use a loop to check each potential directory
-    for dir in $(ls -d /nix/store/*-postgresql-*/bin 2>/dev/null); do
-        if [ -x "$dir/initdb" ]; then
-            echo "Found PostgreSQL binaries at $dir"
-            export PATH="$dir:$PATH"
-            break
+    # We use find to locate initdb as the directory name might vary
+    if [ -d "/nix/store" ]; then
+        INITDB_PATH=$(find /nix/store -name initdb -type f -executable -print -quit 2>/dev/null)
+        if [ -n "$INITDB_PATH" ]; then
+            echo "Found initdb at $INITDB_PATH"
+            PG_BIN_DIR=$(dirname "$INITDB_PATH")
+            export PATH="$PG_BIN_DIR:$PATH"
         fi
-    done
+    fi
 
     if ! command -v initdb &> /dev/null; then
         echo "WARNING: PostgreSQL binaries not found in PATH or /nix/store."
+        echo "Contents of /nix/store matching postgres:"
+        ls -d /nix/store/*postgres* 2>/dev/null || echo "No match found."
     fi
 fi
 
