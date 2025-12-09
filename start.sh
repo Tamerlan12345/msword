@@ -37,7 +37,33 @@ if ! command -v initdb &> /dev/null; then
         echo "WARNING: PostgreSQL binaries not found in PATH or /nix/store."
         echo "Contents of /nix/store matching postgres:"
         ls -d /nix/store/*postgres* 2>/dev/null || echo "No match found."
+
+        echo "Attempting to install PostgreSQL..."
+        if command -v apt-get &> /dev/null; then
+           echo "Detected apt-get. Trying to install postgresql..."
+           # We might not have sudo, but if we are root it works. If not, it fails.
+           apt-get update && apt-get install -y postgresql || echo "Failed to install postgresql via apt-get"
+        elif command -v apk &> /dev/null; then
+           echo "Detected apk. Trying to install postgresql..."
+           apk add postgresql || echo "Failed to install postgresql via apk"
+        else
+           echo "No package manager found or unable to install."
+        fi
+
+        # Check again
+        if ! command -v initdb &> /dev/null; then
+             # Try to find it again, apt installs to /usr/lib/postgresql/x/bin sometimes not in path
+             PG_UBUNTU_BIN=$(ls -d /usr/lib/postgresql/*/bin 2>/dev/null | head -n 1)
+             if [ -n "$PG_UBUNTU_BIN" ]; then
+                 export PATH="$PG_UBUNTU_BIN:$PATH"
+             fi
+        fi
     fi
+fi
+
+if ! command -v initdb &> /dev/null; then
+    echo "ERROR: initdb command not found. Cannot start PostgreSQL."
+    exit 1
 fi
 
 export PGDATA=/app/postgres_data
@@ -55,6 +81,16 @@ if [ ! -d "$PGDATA" ]; then
 fi
 
 echo "Starting PostgreSQL..."
+# Look for pg_ctl if not in path (it should be where initdb is)
+if ! command -v pg_ctl &> /dev/null; then
+    # Try to find it in same dir as initdb
+    INITDB_LOC=$(command -v initdb)
+    BIN_DIR=$(dirname "$INITDB_LOC")
+    if [ -f "$BIN_DIR/pg_ctl" ]; then
+        export PATH="$BIN_DIR:$PATH"
+    fi
+fi
+
 pg_ctl -D "$PGDATA" -l "$PGDATA/logfile" -o "-p $PGPORT" start
 
 echo "Waiting for PostgreSQL to be ready..."
