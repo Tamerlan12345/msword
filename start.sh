@@ -111,7 +111,17 @@ run_as_postgres() {
     fi
 }
 
-if [ ! -d "$PGDATA" ] || [ -z "$(ls -A "$PGDATA")" ]; then
+if [ -s "$PGDATA/PG_VERSION" ]; then
+    echo "PostgreSQL cluster already exists (PG_VERSION found)."
+else
+    echo "No valid PostgreSQL cluster found at $PGDATA. Preparing for initialization..."
+    # If directory exists but no PG_VERSION, it's likely leftovers or invalid.
+    # We should clean it to ensure initdb succeeds.
+    if [ -d "$PGDATA" ]; then
+        echo "WARNING: Directory $PGDATA exists but is not a valid cluster. Cleaning up..."
+        rm -rf "$PGDATA"
+    fi
+
     echo "Initializing PostgreSQL database..."
     mkdir -p "$PGDATA"
     run_as_postgres "initdb -D '$PGDATA' --auth=trust"
