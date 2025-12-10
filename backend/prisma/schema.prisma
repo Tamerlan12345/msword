@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  APPROVER
+}
+
+enum DocumentStatus {
+  DRAFT
+  IN_PROGRESS
+  ON_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(APPROVER)
+  createdAt DateTime @default(now())
+
+  documents         Document[]
+  approvals         WorkflowStepApprover[]
+  comments          Comment[]
+  audits            Audit[]
+  workflowSteps     WorkflowStep[]         @relation("AssignedUser")
+}
+
+model Document {
+  id        String         @id @default(uuid())
+  title     String
+  status    DocumentStatus @default(DRAFT)
+  authorId  String
+  author    User           @relation(fields: [authorId], references: [id])
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  versions  DocumentVersion[]
+  workflow  Workflow?
+  comments  Comment[]
+  audits    Audit[]
+}
+
+model DocumentVersion {
+  id         String   @id @default(uuid())
+  version    Int
+  filePath   String
+  uploadedBy String
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model Workflow {
+  id         String         @id @default(uuid())
+  documentId String         @unique
+  document   Document       @relation(fields: [documentId], references: [id])
+  createdAt  DateTime       @default(now())
+
+  steps      WorkflowStep[]
+}
+
+model WorkflowStep {
+  id         String    @id @default(uuid())
+  workflowId String
+  workflow   Workflow  @relation(fields: [workflowId], references: [id])
+  stepOrder  Int
+
+  assignedToId String?
+  assignedTo   User?     @relation("AssignedUser", fields: [assignedToId], references: [id])
+
+  assignedAt  DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+
+  status      ApprovalStatus @default(PENDING)
+
+  approvers WorkflowStepApprover[]
+}
+
+model WorkflowStepApprover {
+  id             String         @id @default(uuid())
+  stepId         String
+  step           WorkflowStep   @relation(fields: [stepId], references: [id])
+  approverId     String
+  approver       User           @relation(fields: [approverId], references: [id])
+  status         ApprovalStatus @default(PENDING)
+  responseAt     DateTime?
+  comment        String?
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  text       String
+  position   String?
+  createdAt  DateTime @default(now())
+}
+
+model Audit {
+  id         String   @id @default(uuid())
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  details    String?
+  createdAt  DateTime @default(now())
+}
