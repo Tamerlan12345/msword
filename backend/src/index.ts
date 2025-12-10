@@ -14,7 +14,13 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'frontend/build')));
+
+// ИСПРАВЛЕНИЕ:
+// 1. Выходим из 'dist' (..) и из 'backend' (..), чтобы попасть в корень
+// 2. Заходим во 'frontend/dist' (стандартная папка сборки Vite)
+const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+
+app.use(express.static(frontendBuildPath));
 
 // Upload config
 const storage = multer.diskStorage({
@@ -104,8 +110,9 @@ app.get('/api/documents', async (req, res) => {
   }
 });
 
+// ИСПРАВЛЕНИЕ: Используем переменную пути, определенную выше
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/build/index.html'));
+  res.sendFile(path.join(frontendBuildPath, 'index.html'));
 });
 
 app.listen(PORT, () => {
