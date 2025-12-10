@@ -1,5 +1,5 @@
 {
-  "name": "cic-docflow",
+  "name": "siz-doc-flow",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -7,7 +7,13 @@
     "frontend"
   ],
   "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
     "build": "npm run build --workspaces",
-    "start": "bash start.sh"
+    "start": "npm run start --workspace=backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
   }
 }
