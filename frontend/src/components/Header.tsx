@@ -6,7 +6,7 @@ export const Header = () => {
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 fixed w-full top-0 z-50">
       <div className="flex items-center gap-2">
         <FileText className="w-6 h-6 text-primary" />
-        <span className="text-lg font-bold text-gray-800">Сиз. Док. Флоу</span>
+        <span className="text-lg font-bold text-gray-800">CIC DocFlow</span>
       </div>
 
       <div className="flex-1 max-w-xl mx-8">
