@@ -56,6 +56,7 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
     // Ensure author exists (for demo purposes create if not exists or use existing)
     // In real app, we get authorId from JWT
     let user = await prisma.user.findFirst();
+    /*
     if (!user) {
         user = await prisma.user.create({
             data: {
@@ -65,6 +66,11 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
                 role: 'ADMIN'
             }
         });
+    }
+    */
+
+    if (!user) {
+      return res.status(500).json({ error: 'No user found. Please seed the database.' });
     }
 
     const doc = await prisma.document.create({
