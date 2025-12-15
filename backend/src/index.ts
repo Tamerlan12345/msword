@@ -5,6 +5,8 @@ import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+// Важно: импортируем bcrypt для создания пароля на лету
+import bcrypt from 'bcrypt';
 
 dotenv.config();
 
@@ -15,14 +17,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// ИСПРАВЛЕНИЕ:
-// 1. Выходим из 'dist' (..) и из 'backend' (..), чтобы попасть в корень
-// 2. Заходим во 'frontend/dist' (стандартная папка сборки Vite)
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
-
 app.use(express.static(frontendBuildPath));
 
-// Upload config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = 'uploads';
@@ -38,7 +35,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// Routes
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
@@ -53,28 +49,40 @@ app.post('/api/documents', upload.single('file'), async (req: any, res: any) => 
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // ИСПРАВЛЕНИЕ:
-    // 1. Сначала ищем нашего администратора (которого создали через seed)
+    // --- ЛОГИКА АВТОМАТИЧЕСКОГО СОЗДАНИЯ ПОЛЬЗОВАТЕЛЯ (ТЗ) ---
+    const TARGET_EMAIL = 'veronik7@admin.com';
+
+    // 1. Ищем конкретного пользователя Veronik7
     let user = await prisma.user.findUnique({
-      where: { email: 'veronika@admin.com' }
+      where: { email: TARGET_EMAIL }
     });
 
-    // 2. Если конкретного админа нет, берем любого первого пользователя из базы
+    // 2. Если его нет — пробуем найти любого другого (чтобы не дублировать, если seed был другим)
     if (!user) {
       user = await prisma.user.findFirst();
     }
 
-    // 3. Если в базе вообще нет пользователей — возвращаем понятную ошибку, а не падаем
+    // 3. Если база совсем пустая или нужного юзера нет — СОЗДАЕМ АВТОМАТИЧЕСКИ
     if (!user) {
-      console.error('Ошибка: В базе данных нет пользователей. Запустите npx prisma db seed');
-      return res.status(500).json({ error: 'No users found in database. Please run seed script.' });
-    }
+      console.log('База пуста. Автоматическое создание пользователя Veronik7...');
+      const hashedPassword = await bcrypt.hash('Veronika77777', 10);
 
-    // Теперь мы уверены, что user.id существует
+      user = await prisma.user.create({
+        data: {
+          email: TARGET_EMAIL,
+          name: 'Veronik7',
+          password: hashedPassword,
+          role: 'ADMIN' // Используем строковое значение или enum, если импортирован
+        }
+      });
+      console.log('Пользователь Veronik7 успешно создан.');
+    }
+    // ---------------------------------------------------------
+
     const doc = await prisma.document.create({
       data: {
         title: title || file.originalname,
-        authorId: user.id, // Привязываем к найденному пользователю
+        authorId: user.id,
         status: 'DRAFT',
         versions: {
           create: {
@@ -91,12 +99,11 @@ app.post('/api/documents', upload.single('file'), async (req: any, res: any) => 
 
     res.json(doc);
   } catch (error) {
-    console.error('Upload error details:', error); // Логируем полную ошибку в консоль
-    res.status(500).json({ error: 'Failed to create document' });
+    console.error('Upload error details:', error);
+    res.status(500).json({ error: 'Failed to create document', details: String(error) });
   }
 });
 
-// List Documents
 app.get('/api/documents', async (req, res) => {
   try {
     const docs = await prisma.document.findMany({
@@ -110,11 +117,11 @@ app.get('/api/documents', async (req, res) => {
     });
     res.json(docs);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Failed to fetch documents' });
   }
 });
 
-// ИСПРАВЛЕНИЕ: Используем переменную пути, определенную выше
 app.get('*', (req, res) => {
   res.sendFile(path.join(frontendBuildPath, 'index.html'));
 });
