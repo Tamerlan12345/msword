@@ -1,31 +1,35 @@
-// Файл: backend/prisma/seed.ts
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Данные администратора
-  const email = 'veronika@admin.com'; // Используем email как логин
-  const passwordRaw = 'Verkonika7777';
-  const name = 'Veronika';
+  // НОВЫЕ ДАННЫЕ ПО ТЗ
+  const email = 'veronik7@admin.com'; // Используем email для уникальности
+  const name = 'Veronik7';
+  const passwordRaw = 'Veronika77777';
 
-  // Хешируем пароль для безопасности
+  // Хешируем новый пароль
   const hashedPassword = await bcrypt.hash(passwordRaw, 10);
 
-  // Используем upsert: если пользователь есть - ничего не делаем, если нет - создаем
   const admin = await prisma.user.upsert({
     where: { email: email },
-    update: {},
+    update: {
+      // Если пользователь уже есть, обновим пароль и имя на новые
+      password: hashedPassword,
+      name: name,
+      role: Role.ADMIN,
+    },
     create: {
       email: email,
       name: name,
       password: hashedPassword,
-      role: Role.ADMIN, // Роль из Enum в schema.prisma
+      role: Role.ADMIN,
     },
   });
 
-  console.log(`Администратор создан или уже существует: ${admin.name} (${admin.email})`);
+  console.log(`Пользователь создан/обновлен: ${admin.name} (${admin.email})`);
+  console.log(`Пароль: ${passwordRaw}`);
 }
 
 main()

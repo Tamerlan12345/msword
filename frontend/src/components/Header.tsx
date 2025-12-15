@@ -28,9 +28,9 @@ export const Header = () => {
 
         <div className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 pr-2 rounded-full border border-transparent hover:border-gray-200 transition-all">
           <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-medium text-sm">
-            JD
+            V7
           </div>
-          <span className="text-sm font-medium text-gray-700">John Doe</span>
+          <span className="text-sm font-medium text-gray-700">Veronik7</span>
         </div>
       </div>
     </header>
