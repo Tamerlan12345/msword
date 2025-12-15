@@ -44,39 +44,37 @@ app.get('/health', (req, res) => {
 });
 
 // Create Document (Upload)
-app.post('/api/documents', upload.single('file'), async (req, res) => {
+app.post('/api/documents', upload.single('file'), async (req: any, res: any) => {
   try {
-    const { title, authorId } = req.body;
+    const { title } = req.body;
     const file = req.file;
 
     if (!file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Ensure author exists (for demo purposes create if not exists or use existing)
-    // In real app, we get authorId from JWT
-    let user = await prisma.user.findFirst();
-    /*
-    if (!user) {
-        user = await prisma.user.create({
-            data: {
-                email: 'admin@example.com',
-                name: 'Admin',
-                password: 'hashed_password', // TODO: hash
-                role: 'ADMIN'
-            }
-        });
-    }
-    */
+    // ИСПРАВЛЕНИЕ:
+    // 1. Сначала ищем нашего администратора (которого создали через seed)
+    let user = await prisma.user.findUnique({
+      where: { email: 'veronika@admin.com' }
+    });
 
+    // 2. Если конкретного админа нет, берем любого первого пользователя из базы
     if (!user) {
-      return res.status(500).json({ error: 'No user found. Please seed the database.' });
+      user = await prisma.user.findFirst();
     }
 
+    // 3. Если в базе вообще нет пользователей — возвращаем понятную ошибку, а не падаем
+    if (!user) {
+      console.error('Ошибка: В базе данных нет пользователей. Запустите npx prisma db seed');
+      return res.status(500).json({ error: 'No users found in database. Please run seed script.' });
+    }
+
+    // Теперь мы уверены, что user.id существует
     const doc = await prisma.document.create({
       data: {
         title: title || file.originalname,
-        authorId: user.id,
+        authorId: user.id, // Привязываем к найденному пользователю
         status: 'DRAFT',
         versions: {
           create: {
@@ -93,7 +91,7 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
 
     res.json(doc);
   } catch (error) {
-    console.error(error);
+    console.error('Upload error details:', error); // Логируем полную ошибку в консоль
     res.status(500).json({ error: 'Failed to create document' });
   }
 });
