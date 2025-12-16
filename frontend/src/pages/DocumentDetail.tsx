@@ -5,6 +5,7 @@ import { Header } from '../components/Header';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { ArrowLeft, Save, CheckCircle, XCircle, UserPlus, Users } from 'lucide-react';
+import { DocumentEditor } from '../components/DocumentEditor';
 
 export const DocumentDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -13,8 +14,9 @@ export const DocumentDetail = () => {
   const [users, setUsers] = useState<any[]>([]); // Все юзеры для выбора
   const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]); // Выбранные ID
   const [isEditingApprovers, setIsEditingApprovers] = useState(false);
+  const [isReviewMode, setIsReviewMode] = useState(false);
 
-  // Настройка редактора Tiptap
+  // Настройка редактора Tiptap (используется если нет файла)
   const editor = useEditor({
     extensions: [StarterKit],
     content: '<p>Загрузка...</p>',
@@ -36,16 +38,18 @@ export const DocumentDetail = () => {
         setDoc(docRes.data);
         setUsers(usersRes.data);
 
-        // Установка контента в редактор
-        if (editor && docRes.data.content) {
-            // Если контент - JSON строка, парсим, иначе HTML
-            try {
-                editor.commands.setContent(JSON.parse(docRes.data.content));
-            } catch {
-                editor.commands.setContent(docRes.data.content);
+        // Установка контента в редактор (только если нет файла)
+        if (docRes.data.versions.length === 0) {
+            if (editor && docRes.data.content) {
+                // Если контент - JSON строка, парсим, иначе HTML
+                try {
+                    editor.commands.setContent(JSON.parse(docRes.data.content));
+                } catch {
+                    editor.commands.setContent(docRes.data.content);
+                }
+            } else if (editor) {
+                editor.commands.setContent('<p>Начните писать здесь...</p>');
             }
-        } else if (editor) {
-             editor.commands.setContent('<p>Начните писать здесь...</p>');
         }
 
       } catch (error) {
@@ -55,7 +59,7 @@ export const DocumentDetail = () => {
     fetchData();
   }, [id, editor]);
 
-  // Сохранение контента
+  // Сохранение контента (для Tiptap)
   const handleSaveContent = async () => {
     if (!editor) return;
     const content = JSON.stringify(editor.getJSON());
@@ -72,8 +76,10 @@ export const DocumentDetail = () => {
     if (selectedApprovers.length === 0) return alert('Выберите хотя бы одного согласующего');
 
     try {
-      // Сначала сохраняем текст
-      await handleSaveContent();
+      // Сначала сохраняем текст (если это tiptap)
+      if (doc.versions.length === 0) {
+          await handleSaveContent();
+      }
       // Потом назначаем людей
       await axios.post(`/api/documents/${id}/approvers`, { userIds: selectedApprovers });
 
@@ -116,16 +122,31 @@ export const DocumentDetail = () => {
           <div className="col-span-2 bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
             <div className="flex justify-between items-center mb-4 border-b pb-4">
               <h1 className="text-2xl font-bold">{doc.title}</h1>
-              {doc.status === 'DRAFT' && (
-                 <button onClick={handleSaveContent} className="flex items-center gap-2 text-primary hover:bg-blue-50 px-3 py-1 rounded">
-                   <Save className="w-4 h-4" /> Сохранить
-                 </button>
-              )}
+              <div className="flex gap-2">
+                 {doc.versions.length > 0 && doc.status === 'DRAFT' && (
+                     <button
+                        onClick={() => setIsReviewMode(!isReviewMode)}
+                        className={`px-3 py-1 rounded border text-sm ${isReviewMode ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-300'}`}
+                     >
+                        {isReviewMode ? 'Режим рецензирования ВКЛ' : 'Режим рецензирования'}
+                     </button>
+                 )}
+
+                 {doc.status === 'DRAFT' && doc.versions.length === 0 && (
+                    <button onClick={handleSaveContent} className="flex items-center gap-2 text-primary hover:bg-blue-50 px-3 py-1 rounded">
+                    <Save className="w-4 h-4" /> Сохранить
+                    </button>
+                 )}
+              </div>
             </div>
 
             {/* Область редактора */}
-            <div className="prose max-w-none border p-4 rounded min-h-[500px] outline-none">
-               <EditorContent editor={editor} disabled={doc.status !== 'DRAFT'} />
+            <div className="prose max-w-none border p-4 rounded min-h-[500px] outline-none w-full">
+               {doc.versions.length > 0 ? (
+                   <DocumentEditor documentId={doc.id} isReviewMode={isReviewMode} />
+               ) : (
+                   <EditorContent editor={editor} disabled={doc.status !== 'DRAFT'} />
+               )}
             </div>
           </div>
 
