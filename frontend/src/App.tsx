@@ -16,15 +16,12 @@ const AppContent = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Восстанавливаем токен при загрузке страницы
+    // Axios мы уже настроили в main.tsx, здесь только проверяем наличие токена
     const token = localStorage.getItem('token');
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      // Если токена нет и мы не на логине - редирект
-      if (window.location.pathname !== '/login') {
-        navigate('/login');
-      }
+
+    // Если токена нет и мы не на странице логина - редирект
+    if (!token && window.location.pathname !== '/login') {
+      navigate('/login');
     }
   }, [navigate]);
 
