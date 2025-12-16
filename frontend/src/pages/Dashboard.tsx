@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { NewDocumentModal } from '../components/NewDocumentModal';
 import { Plus } from 'lucide-react';
@@ -13,12 +14,26 @@ const TABS = [
 ];
 
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('my-tasks');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      setCurrentUser(JSON.parse(userStr));
+    }
+  }, []);
 
   const fetchDocuments = async () => {
     try {
+      // Fetch all docs for now and filter on frontend, or rely on future backend filtering
+      // Since we updated backend to support filtering, we could use it, but logic is complex:
+      // "My tasks" = (authorId == me AND (status == DRAFT OR REJECTED))
+      // Backend filter is simple AND. Complex OR logic is easier on Frontend for MVP unless we add complex query params.
+      // So I will fetch all and filter here as permitted by TS ("or filter array on client").
       const res = await axios.get('/api/documents');
       setDocuments(res.data);
     } catch (error) {
@@ -29,6 +44,42 @@ export const Dashboard = () => {
   useEffect(() => {
     fetchDocuments();
   }, []);
+
+  const filteredDocuments = documents.filter(doc => {
+    if (!currentUser) return false;
+
+    const isAuthor = doc.authorId === currentUser.id;
+    // const isAdmin = currentUser.role === 'ADMIN'; // Not strictly needed for filtering if we follow TS logic exactly
+
+    switch (activeTab) {
+      case 'my-tasks':
+        // authorId == Current User AND (status == DRAFT OR REJECTED)
+        return isAuthor && (doc.status === 'DRAFT' || doc.status === 'REJECTED');
+
+      case 'on-approval':
+        // status == ON_APPROVAL
+        // TS says: "Documents that left the author and wait for Admin decision."
+        // Usually Admin sees these. If I am author, do I see them here?
+        // TS description: "Documents that left the author..."
+        // If I am just an Author, maybe I shouldn't see *all* on-approval docs?
+        // But TS didn't specify user restriction here, just "status == ON_APPROVAL".
+        // However, usually "On Approval" tab is for Approvers (Admins).
+        // Let's assume global visibility or filtered by role logic if implied.
+        // For MVP, sticking to TS: status == ON_APPROVAL.
+        return doc.status === 'ON_APPROVAL';
+
+      case 'in-progress':
+        // authorId == Current User AND status == ON_APPROVAL
+        return isAuthor && doc.status === 'ON_APPROVAL';
+
+      case 'archive':
+        // status == APPROVED
+        return doc.status === 'APPROVED';
+
+      default:
+        return true;
+    }
+  });
 
   return (
     <div className="min-h-screen pt-16 bg-[#F5F6F8]">
@@ -67,15 +118,24 @@ export const Dashboard = () => {
 
         {/* Content Area */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {documents.map((doc) => (
-            <div key={doc.id} className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer">
+          {filteredDocuments.map((doc) => (
+            <div
+              key={doc.id}
+              onClick={() => navigate(`/documents/${doc.id}`)}
+              className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+            >
               <div className="flex justify-between items-start mb-3">
                 <h3 className="font-bold text-gray-800 line-clamp-2">{doc.title}</h3>
                 <span className={clsx(
                   "px-2 py-1 text-xs font-medium rounded-md",
-                  doc.status === 'DRAFT' ? "bg-gray-100 text-gray-600" : "bg-blue-50 text-blue-700"
+                  doc.status === 'DRAFT' ? "bg-gray-100 text-gray-600" :
+                  doc.status === 'ON_APPROVAL' ? "bg-blue-50 text-blue-700" :
+                  doc.status === 'APPROVED' ? "bg-green-50 text-green-700" :
+                  "bg-red-50 text-red-700"
                 )}>
-                  {doc.status === 'DRAFT' ? 'Черновик' : 'На согласовании'}
+                  {doc.status === 'DRAFT' ? 'Черновик' :
+                   doc.status === 'ON_APPROVAL' ? 'На согласовании' :
+                   doc.status === 'APPROVED' ? 'Согласован' : 'Отклонен'}
                 </span>
               </div>
 
@@ -85,21 +145,29 @@ export const Dashboard = () => {
 
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Этап 1 из 1</span>
+                  <span>Статус</span>
                   <span className="text-primary font-medium">
-                     {doc.status === 'DRAFT' ? 'Создание' : 'В процессе'}
+                     {doc.status}
                   </span>
                 </div>
+                {/* Visual progress bar can be smarter, but for now just show something */}
                 <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-0 rounded-full"></div>
+                  <div
+                    className={clsx("h-full w-0 rounded-full",
+                      doc.status === 'APPROVED' ? "bg-green-500 w-full" :
+                      doc.status === 'ON_APPROVAL' ? "bg-blue-500 w-1/2" :
+                      doc.status === 'REJECTED' ? "bg-red-500 w-full" :
+                      "bg-gray-300 w-1/4"
+                    )}
+                  ></div>
                 </div>
               </div>
             </div>
           ))}
 
-          {documents.length === 0 && (
+          {filteredDocuments.length === 0 && (
             <div className="col-span-full text-center py-20 text-gray-400">
-              Нет документов. Создайте первый документ.
+              В этой категории нет документов.
             </div>
           )}
         </div>

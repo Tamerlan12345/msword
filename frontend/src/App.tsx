@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
+import { DocumentDetail } from './pages/DocumentDetail';
 import axios from 'axios';
 
 // Компонент защиты роутов
@@ -29,6 +30,7 @@ const AppContent = () => {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/documents/:id" element={<ProtectedRoute><DocumentDetail /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
     </Routes>
   );
