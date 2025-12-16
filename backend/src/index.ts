@@ -1,4 +1,3 @@
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -17,13 +16,13 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-it';
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
-// Раздача статики фронтенда
+// Serve frontend static files
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
 
-// Настройка загрузки файлов
+// File upload setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = 'uploads';
@@ -37,7 +36,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// --- MIDDLEWARE АВТОРИЗАЦИИ ---
+// --- MIDDLEWARE ---
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -53,20 +52,17 @@ const authenticateToken = (req: any, res: any, next: any) => {
 
 // --- ROUTES ---
 
-// 1. ВХОД В СИСТЕМУ (LOGIN)
+// 1. LOGIN
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Ищем пользователя
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.status(400).json({ error: 'Пользователь не найден' });
 
-    // Проверяем пароль
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) return res.status(400).json({ error: 'Неверный пароль' });
 
-    // Генерируем токен
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '24h' });
 
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
@@ -75,12 +71,12 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// 2. СОЗДАНИЕ ПОЛЬЗОВАТЕЛЯ (Только для Админа или первичная настройка)
+// 2. CREATE USER (Admin only or setup)
 app.post('/api/users', async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+    // Basic protection could be added here
 
-    // Проверка существования
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ error: 'Email уже занят' });
 
@@ -97,25 +93,43 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// 3. ЗАГРУЗКА ДОКУМЕНТА (ЗАЩИЩЕНО)
+// GET USERS (For approver selection)
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, email: true, role: true }
+    });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// 3. UPLOAD DOCUMENT
 app.post('/api/documents', authenticateToken, upload.single('file'), async (req: any, res: any) => {
   try {
     const { title } = req.body;
-    const file = req.file;
-    // Берем ID пользователя из токена (req.user)
     const userId = req.user.id;
 
-    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+    // Allow creating document without file (just editor)
+    // If file is present, create version. If not, just create doc.
+    const file = req.file;
+
+    const data: any = {
+        title: title || (file ? file.originalname : 'Новый документ'),
+        authorId: userId,
+        status: 'DRAFT',
+        content: '', // Start empty or default
+    };
+
+    if (file) {
+        data.versions = {
+          create: { version: 1, filePath: file.path },
+        };
+    }
 
     const doc = await prisma.document.create({
-      data: {
-        title: title || file.originalname,
-        authorId: userId, // Привязываем к реальному пользователю
-        status: 'DRAFT',
-        versions: {
-          create: { version: 1, filePath: file.path, uploadedBy: userId },
-        },
-      },
+      data,
       include: { versions: true },
     });
 
@@ -126,7 +140,7 @@ app.post('/api/documents', authenticateToken, upload.single('file'), async (req:
   }
 });
 
-// 4. ПОЛУЧЕНИЕ СПИСКА ДОКУМЕНТОВ
+// 4. GET DOCUMENTS
 app.get('/api/documents', authenticateToken, async (req: any, res: any) => {
   try {
     const { authorId, status } = req.query;
@@ -137,7 +151,7 @@ app.get('/api/documents', authenticateToken, async (req: any, res: any) => {
 
     const docs = await prisma.document.findMany({
       where,
-      include: { author: true, versions: true },
+      include: { author: true, versions: true, approvers: true },
       orderBy: { updatedAt: 'desc' },
     });
     res.json(docs);
@@ -146,13 +160,18 @@ app.get('/api/documents', authenticateToken, async (req: any, res: any) => {
   }
 });
 
-// 5. ПОЛУЧЕНИЕ ОДНОГО ДОКУМЕНТА
+// 5. GET DOCUMENT DETAIL
 app.get('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
   try {
     const { id } = req.params;
     const doc = await prisma.document.findUnique({
       where: { id },
-      include: { author: true, versions: true },
+      include: {
+          author: true,
+          versions: true,
+          approvers: { include: { user: true } }, // Include approver details
+          comments: { include: { author: true } }
+      },
     });
 
     if (!doc) return res.status(404).json({ error: 'Document not found' });
@@ -163,41 +182,123 @@ app.get('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
   }
 });
 
-// 6. ОБНОВЛЕНИЕ СТАТУСА ДОКУМЕНТА
-app.put('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
+// 6. UPDATE DOCUMENT CONTENT (Editor save)
+app.put('/api/documents/:id/content', authenticateToken, async (req: any, res: any) => {
+  const { id } = req.params;
+  const { content } = req.body; // JSON string
+
   try {
-    const { id } = req.params;
-    const { status } = req.body; // Expecting status string
-    const user = req.user;
-
-    // Сначала найдем документ
-    const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc) return res.status(404).json({ error: 'Document not found' });
-
-    // Простая проверка прав (расширить при необходимости)
-    // ADMIN может менять статус на APPROVED/REJECTED
-    // AUTHOR может менять статус DRAFT -> ON_APPROVAL или REJECTED -> DRAFT
-    // Но пока доверимся фронтенду + базовой логике:
-
-    // Если статус APPROVED, менять нельзя (кроме админа, возможно)
-    if (doc.status === 'APPROVED' && user.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Document is already approved' });
-    }
-
-    const updatedDoc = await prisma.document.update({
+    const doc = await prisma.document.update({
       where: { id },
-      data: { status },
-      include: { author: true, versions: true },
+      data: { content }
     });
-
-    res.json(updatedDoc);
+    res.json(doc);
   } catch (error) {
-    console.error('Update Error:', error);
-    res.status(500).json({ error: 'Failed to update document' });
+    res.status(500).json({ error: 'Ошибка сохранения' });
   }
 });
 
-// 7. УДАЛЕНИЕ ДОКУМЕНТА
+// 7. ASSIGN APPROVERS
+app.post('/api/documents/:id/approvers', authenticateToken, async (req: any, res: any) => {
+  const { id } = req.params;
+  const { userIds } = req.body; // ["uuid1", "uuid2"]
+
+  try {
+    // Remove old pending approvers
+    await prisma.documentApprover.deleteMany({
+      where: { documentId: id, status: 'PENDING' }
+    });
+
+    // Add new ones
+    const promises = userIds.map((userId: string) =>
+      prisma.documentApprover.create({
+        data: {
+          documentId: id,
+          userId: userId,
+          status: 'PENDING'
+        }
+      })
+    );
+
+    await Promise.all(promises);
+
+    // Update doc status
+    await prisma.document.update({
+      where: { id },
+      data: { status: 'ON_APPROVAL' }
+    });
+
+    res.json({ message: 'Согласующие назначены' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка назначения' });
+  }
+});
+
+// 8. APPROVE/REJECT
+app.put('/api/documents/:id/approve', authenticateToken, async (req: any, res: any) => {
+  const { id } = req.params;
+  const { status, comment } = req.body; // APPROVED or REJECTED
+  const userId = req.user.id;
+
+  try {
+    // Update approver status
+    await prisma.documentApprover.update({
+      where: { documentId_userId: { documentId: id, userId } },
+      data: { status, comment }
+    });
+
+    // Check if all approved
+    if (status === 'APPROVED') {
+      const allApprovers = await prisma.documentApprover.findMany({
+        where: { documentId: id }
+      });
+
+      const allApproved = allApprovers.every(a => a.status === 'APPROVED');
+
+      if (allApproved) {
+        await prisma.document.update({
+          where: { id },
+          data: { status: 'APPROVED' }
+        });
+      }
+    } else if (status === 'REJECTED') {
+      // If one rejects, document is rejected
+      await prisma.document.update({
+        where: { id },
+        data: { status: 'REJECTED' }
+      });
+    }
+
+    res.json({ message: 'Голос учтен' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка голосования' });
+  }
+});
+
+// 9. GENERAL UPDATE (Legacy/Status manual change)
+app.put('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
+    // Keeps existing logic for manual status updates if needed
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (status) {
+             const doc = await prisma.document.update({
+                where: { id },
+                data: { status }
+            });
+            return res.json(doc);
+        }
+        res.json({message: "Nothing to update"});
+    } catch (e) {
+        res.status(500).json({error: "Update failed"});
+    }
+});
+
+
+// 10. DELETE DOCUMENT
 app.delete('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
   try {
     const { id } = req.params;
@@ -206,35 +307,19 @@ app.delete('/api/documents/:id', authenticateToken, async (req: any, res: any) =
     const doc = await prisma.document.findUnique({ where: { id } });
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-    // Проверка прав на удаление
-    // Автор может удалять только черновики. Админ может удалять всё (или по правилам).
-    // Реализуем как в ТЗ: Автор -> DRAFT -> Удалить
-
     if (user.role !== 'ADMIN') {
-      if (doc.authorId !== user.id) {
-        return res.status(403).json({ error: 'Not authorized' });
-      }
+      if (doc.authorId !== user.id) return res.status(403).json({ error: 'Not authorized' });
+      // Allow author to delete if DRAFT or REJECTED
       if (doc.status !== 'DRAFT' && doc.status !== 'REJECTED') {
          return res.status(403).json({ error: 'Can only delete drafts' });
       }
     }
 
-    // Удаляем связанные версии и сам документ
-    // Note: In real app, cascading delete should be configured in Prisma schema or handled manually
-    // Here we use Prisma transaction or let cascade work if configured (Schema didn't explicitly say cascade for versions but usually it's needed)
-    // The schema: versions DocumentVersion[]
-    // We should delete versions first or rely on cascade. Let's try delete directly, if it fails due to FK, we'll fix.
-    // Prisma usually doesn't cascade by default unless @relation(onDelete: Cascade)
-    // Checking schema: document   Document @relation(fields: [documentId], references: [id])
-    // No onDelete: Cascade. So we must delete versions first.
-
+    // Delete related
     await prisma.$transaction([
       prisma.documentVersion.deleteMany({ where: { documentId: id } }),
-      prisma.comment.deleteMany({ where: { documentId: id } }), // If any
-      // Workflow, audits might exist too. For MVP simplest is delete document and related.
-      // Schema has Workflow? Yes. Audit? Yes.
-      prisma.workflow.deleteMany({ where: { documentId: id } }),
-      prisma.audit.deleteMany({ where: { documentId: id } }),
+      prisma.comment.deleteMany({ where: { documentId: id } }),
+      prisma.documentApprover.deleteMany({ where: { documentId: id } }),
       prisma.document.delete({ where: { id } }),
     ]);
 
@@ -245,26 +330,30 @@ app.delete('/api/documents/:id', authenticateToken, async (req: any, res: any) =
   }
 });
 
-// --- INIT (АВТО-СОЗДАНИЕ АДМИНА ЕСЛИ БАЗА ПУСТА) ---
+// INIT ADMIN
 const init = async () => {
-  const count = await prisma.user.count();
-  if (count === 0) {
-    console.log('База пуста. Создаю суперадмина Veronik7...');
-    const hash = await bcrypt.hash('Veronika77777', 10);
-    await prisma.user.create({
-      data: {
-        email: 'veronik7@admin.com',
-        name: 'Veronik7',
-        password: hash,
-        role: 'ADMIN'
-      }
-    });
-    console.log('Администратор создан: veronik7@admin.com / Veronika77777');
-  }
+    try {
+        const count = await prisma.user.count();
+        if (count === 0) {
+            console.log('Creating default admin...');
+            const hash = await bcrypt.hash('Veronika77777', 10);
+            await prisma.user.create({
+            data: {
+                email: 'veronik7@admin.com',
+                name: 'Veronik7',
+                password: hash,
+                role: 'ADMIN'
+            }
+            });
+            console.log('Admin created.');
+        }
+    } catch (e) {
+        console.log('Init skipped or failed (db might be down)');
+    }
 };
 init();
 
-// Catch-all для фронтенда
+// Catch-all
 app.get('*', (req, res) => {
   res.sendFile(path.join(frontendBuildPath, 'index.html'));
 });

@@ -2,192 +2,204 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Header } from '../components/Header';
-import { ArrowLeft, FileText, Download, CheckCircle, XCircle, Send, Edit, Trash2, RotateCcw } from 'lucide-react';
-import { clsx } from 'clsx';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import { ArrowLeft, Save, CheckCircle, XCircle, UserPlus, Users } from 'lucide-react';
 
 export const DocumentDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [doc, setDoc] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]); // Все юзеры для выбора
+  const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]); // Выбранные ID
+  const [isEditingApprovers, setIsEditingApprovers] = useState(false);
 
+  // Настройка редактора Tiptap
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: '<p>Загрузка...</p>',
+    onUpdate: ({ editor }) => {
+      // Здесь можно реализовать автосохранение
+      // const json = editor.getJSON();
+    },
+  });
+
+  // Загрузка данных
   useEffect(() => {
-    // Decode user from token or get from localStorage if you stored it there
-    // In Login.tsx we store token. We usually store user info too or decode token.
-    // The Login response sends { token, user }. Let's assume we might need to fetch user or parse token.
-    // For simplicity, let's look at what Login.tsx does.
-    // Login.tsx: localStorage.setItem('token', token); localStorage.setItem('user', JSON.stringify(data.user));
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      setCurrentUser(JSON.parse(userStr));
-    }
+    const fetchData = async () => {
+      try {
+        const [docRes, usersRes] = await Promise.all([
+          axios.get(`/api/documents/${id}`),
+          axios.get('/api/users')
+        ]);
 
-    fetchDocument();
-  }, [id]);
+        setDoc(docRes.data);
+        setUsers(usersRes.data);
 
-  const fetchDocument = async () => {
-    try {
-      const res = await axios.get(`/api/documents/${id}`);
-      setDoc(res.data);
-    } catch (err) {
-      setError('Ошибка загрузки документа');
-    } finally {
-      setLoading(false);
-    }
-  };
+        // Установка контента в редактор
+        if (editor && docRes.data.content) {
+            // Если контент - JSON строка, парсим, иначе HTML
+            try {
+                editor.commands.setContent(JSON.parse(docRes.data.content));
+            } catch {
+                editor.commands.setContent(docRes.data.content);
+            }
+        } else if (editor) {
+             editor.commands.setContent('<p>Начните писать здесь...</p>');
+        }
 
-  const updateStatus = async (newStatus: string) => {
-    try {
-      const res = await axios.put(`/api/documents/${id}`, { status: newStatus });
-      setDoc(res.data);
-    } catch (err) {
-      alert('Ошибка обновления статуса');
-    }
-  };
-
-  const deleteDocument = async () => {
-    if (!window.confirm('Вы уверены, что хотите удалить этот документ?')) return;
-    try {
-      await axios.delete(`/api/documents/${id}`);
-      navigate('/');
-    } catch (err) {
-      alert('Ошибка удаления');
-    }
-  };
-
-  if (loading) return <div className="p-10 text-center">Загрузка...</div>;
-  if (error || !doc) return <div className="p-10 text-center text-red-500">{error || 'Документ не найден'}</div>;
-
-  const isAuthor = currentUser?.id === doc.authorId;
-  const isAdmin = currentUser?.role === 'ADMIN';
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'DRAFT': return 'bg-gray-100 text-gray-600';
-      case 'ON_APPROVAL': return 'bg-blue-50 text-blue-700';
-      case 'APPROVED': return 'bg-green-50 text-green-700';
-      case 'REJECTED': return 'bg-red-50 text-red-700';
-      default: return 'bg-gray-100 text-gray-600';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'DRAFT': return 'Черновик';
-      case 'ON_APPROVAL': return 'На согласовании';
-      case 'APPROVED': return 'Согласован';
-      case 'REJECTED': return 'Отклонен';
-      default: return status;
-    }
-  };
-
-  // Logic for buttons based on TS Matrix
-  const renderActions = () => {
-    // Scenario A: User is Author
-    if (isAuthor) {
-      if (doc.status === 'DRAFT') {
-        return (
-          <div className="flex gap-2">
-            <button onClick={() => updateStatus('ON_APPROVAL')} className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded hover:bg-primary-light">
-              <Send size={16} /> Отправить на согласование
-            </button>
-            {/* Edit is complex (upload new file), skipping for MVP or just showing button */}
-            <button className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-50" onClick={() => alert('Редактирование пока не реализовано')}>
-              <Edit size={16} /> Редактировать
-            </button>
-            <button onClick={deleteDocument} className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-2 rounded hover:bg-red-100">
-              <Trash2 size={16} /> Удалить
-            </button>
-          </div>
-        );
+      } catch (error) {
+        console.error(error);
       }
-      if (doc.status === 'REJECTED') {
-        return (
-          <div className="flex gap-2">
-             <button onClick={() => updateStatus('DRAFT')} className="flex items-center gap-2 bg-orange-100 text-orange-700 px-4 py-2 rounded hover:bg-orange-200">
-              <RotateCcw size={16} /> Вернуть в черновик
-            </button>
-          </div>
-        )
-      }
-    }
+    };
+    fetchData();
+  }, [id, editor]);
 
-    // Scenario B: User is Admin (Approver)
-    // Note: Admin can see others' docs.
-    if (isAdmin) {
-      if (doc.status === 'ON_APPROVAL') {
-        return (
-          <div className="flex gap-2">
-            <button onClick={() => updateStatus('APPROVED')} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-              <CheckCircle size={16} /> Согласовать
-            </button>
-            <button onClick={() => updateStatus('REJECTED')} className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-              <XCircle size={16} /> Отклонить
-            </button>
-          </div>
-        );
-      }
+  // Сохранение контента
+  const handleSaveContent = async () => {
+    if (!editor) return;
+    const content = JSON.stringify(editor.getJSON());
+    try {
+      await axios.put(`/api/documents/${id}/content`, { content });
+      alert('Документ сохранен');
+    } catch (e) {
+      alert('Ошибка сохранения');
     }
-
-    return null;
   };
 
-  // Find latest file path
-  const latestVersion = doc.versions && doc.versions.length > 0 ? doc.versions[doc.versions.length - 1] : null;
-  const downloadUrl = latestVersion ? `/${latestVersion.filePath}` : '#'; // Assuming filePath is relative to static root
+  // Отправка на согласование с выбором людей
+  const handleSendToApproval = async () => {
+    if (selectedApprovers.length === 0) return alert('Выберите хотя бы одного согласующего');
+
+    try {
+      // Сначала сохраняем текст
+      await handleSaveContent();
+      // Потом назначаем людей
+      await axios.post(`/api/documents/${id}/approvers`, { userIds: selectedApprovers });
+
+      setDoc({ ...doc, status: 'ON_APPROVAL' });
+      setIsEditingApprovers(false);
+      alert('Отправлено на согласование!');
+    } catch (e) {
+      alert('Ошибка отправки');
+    }
+  };
+
+  // Голосование (для согласующего)
+  const handleVote = async (status: 'APPROVED' | 'REJECTED') => {
+    const comment = status === 'REJECTED' ? prompt('Укажите причину отказа:') : null;
+    if (status === 'REJECTED' && !comment) return;
+
+    try {
+      await axios.put(`/api/documents/${id}/approve`, { status, comment });
+      alert('Ваш голос учтен');
+      navigate('/'); // Вернуться на дашборд
+    } catch (e) {
+      alert('Ошибка');
+    }
+  };
+
+  if (!doc) return <div>Загрузка...</div>;
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8]">
+    <div className="min-h-screen bg-[#F5F6F8] pb-20">
       <Header />
+
       <div className="max-w-5xl mx-auto px-6 py-8">
-        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-6">
-          <ArrowLeft size={20} /> Назад к списку
+        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-500 mb-4">
+          <ArrowLeft className="w-4 h-4" /> Назад
         </button>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">{doc.title}</h1>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
-                <span>Автор: {doc.author?.name}</span>
-                <span>•</span>
-                <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
-              </div>
-            </div>
-            <span className={clsx("px-3 py-1 rounded-full text-sm font-medium", getStatusColor(doc.status))}>
-              {getStatusLabel(doc.status)}
-            </span>
-          </div>
+        <div className="grid grid-cols-3 gap-6">
 
-          <div className="border-t border-b border-gray-100 py-6 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
-                  <FileText size={24} />
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Файл документа</p>
-                  <p className="text-sm text-gray-500">{latestVersion ? `Версия ${latestVersion.version}` : 'Нет файла'}</p>
-                </div>
-              </div>
-              {latestVersion && (
-                <a
-                  href={downloadUrl}
-                  download
-                  className="flex items-center gap-2 text-primary hover:text-primary-dark font-medium"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Download size={18} /> Скачать
-                </a>
+          {/* ЛЕВАЯ КОЛОНКА: Редактор */}
+          <div className="col-span-2 bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
+            <div className="flex justify-between items-center mb-4 border-b pb-4">
+              <h1 className="text-2xl font-bold">{doc.title}</h1>
+              {doc.status === 'DRAFT' && (
+                 <button onClick={handleSaveContent} className="flex items-center gap-2 text-primary hover:bg-blue-50 px-3 py-1 rounded">
+                   <Save className="w-4 h-4" /> Сохранить
+                 </button>
               )}
             </div>
+
+            {/* Область редактора */}
+            <div className="prose max-w-none border p-4 rounded min-h-[500px] outline-none">
+               <EditorContent editor={editor} disabled={doc.status !== 'DRAFT'} />
+            </div>
           </div>
 
-          <div className="flex justify-end">
-            {renderActions()}
+          {/* ПРАВАЯ КОЛОНКА: Управление и Согласование */}
+          <div className="col-span-1 space-y-6">
+
+            {/* Блок статуса */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+               <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Статус</h3>
+               <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold
+                 ${doc.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                   doc.status === 'ON_APPROVAL' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                 {doc.status}
+               </div>
+            </div>
+
+            {/* Блок действий для АВТОРА (Черновик) */}
+            {doc.status === 'DRAFT' && (
+              <div className="bg-white p-6 rounded-lg shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-4">Маршрут согласования</h3>
+
+                {!isEditingApprovers ? (
+                    <button
+                      onClick={() => setIsEditingApprovers(true)}
+                      className="w-full py-2 border-2 border-dashed border-gray-300 rounded text-gray-500 hover:border-primary hover:text-primary flex items-center justify-center gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" /> Выбрать согласующих
+                    </button>
+                ) : (
+                    <div className="space-y-3">
+                        <p className="text-xs text-gray-500">Выберите сотрудников:</p>
+                        <div className="max-h-40 overflow-y-auto border rounded p-2">
+                           {users.map(u => (
+                               <label key={u.id} className="flex items-center gap-2 p-1 hover:bg-gray-50 cursor-pointer">
+                                   <input
+                                     type="checkbox"
+                                     checked={selectedApprovers.includes(u.id)}
+                                     onChange={(e) => {
+                                         if(e.target.checked) setSelectedApprovers([...selectedApprovers, u.id]);
+                                         else setSelectedApprovers(selectedApprovers.filter(id => id !== u.id));
+                                     }}
+                                   />
+                                   <span className="text-sm">{u.name || u.email}</span>
+                               </label>
+                           ))}
+                        </div>
+                        <div className="flex gap-2">
+                           <button onClick={handleSendToApproval} className="w-full bg-primary text-white py-2 rounded text-sm hover:bg-primary-dark">
+                             Отправить
+                           </button>
+                           <button onClick={() => setIsEditingApprovers(false)} className="px-3 py-2 text-gray-500 text-sm">
+                             Отмена
+                           </button>
+                        </div>
+                    </div>
+                )}
+              </div>
+            )}
+
+            {/* Блок действий для СОГЛАСУЮЩЕГО */}
+            {doc.status === 'ON_APPROVAL' && (
+              <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-500">
+                <h3 className="font-bold mb-4">Требуется ваше решение</h3>
+                <div className="flex gap-3">
+                  <button onClick={() => handleVote('APPROVED')} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 flex justify-center items-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Принять
+                  </button>
+                  <button onClick={() => handleVote('REJECTED')} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded hover:bg-red-100 flex justify-center items-center gap-2">
+                    <XCircle className="w-4 h-4" /> Отказать
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       </div>
