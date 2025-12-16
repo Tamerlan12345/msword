@@ -4,9 +4,9 @@
   "main": "dist/index.js",
   "scripts": {
     "postinstall": "prisma generate",
-    "dev": "nodemon src/index.ts",
+    "dev": "npx prisma db push --accept-data-loss && nodemon src/index.ts",
     "build": "prisma generate && tsc",
-    "start": "npx prisma db push && node dist/index.js",
+    "start": "npx prisma db push --accept-data-loss && node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push"
   },
