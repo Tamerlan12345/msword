@@ -1,17 +1,20 @@
 
 > backend@1.0.0 start
-> npx prisma db push && node dist/index.js
+> npx prisma db push --accept-data-loss && node dist/index.js
 
 Prisma schema loaded from prisma/schema.prisma
-Datasource "db": PostgreSQL database "postgres", schema "public" at "localhost:5432"
+Datasource "db": PostgreSQL database
 
-Error: P1001: Can't reach database server at `localhost:5432`
+Error: Prisma schema validation - (get-config wasm)
+Error code: P1012
+error: Environment variable not found: DATABASE_URL.
+  -->  prisma/schema.prisma:7
+   |
+ 6 |   provider = "postgresql"
+ 7 |   url      = env("DATABASE_URL")
+   |
 
-Please make sure your database server is running at `localhost:5432`.
-npm error Lifecycle script `start` failed with error:
-npm error code 1
-npm error path /app/backend
-npm error workspace backend@1.0.0
-npm error location /app/backend
-npm error command failed
-npm error command sh -c npx prisma db push && node dist/index.js
+Validation Error Count: 1
+[Context: getConfig]
+
+Prisma CLI Version : 5.22.0

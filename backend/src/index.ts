@@ -21,6 +21,7 @@ app.use(express.json({ limit: '50mb' }));
 // Serve frontend static files
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // File upload setup
 const storage = multer.diskStorage({
@@ -180,6 +181,143 @@ app.get('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch document' });
   }
+});
+
+// ONLYOFFICE CONFIG
+app.get('/api/documents/:id/onlyoffice-config', authenticateToken, async (req: any, res: any) => {
+    try {
+        const { id } = req.params;
+        const { review } = req.query;
+        const user = req.user;
+
+        const doc = await prisma.document.findUnique({
+            where: { id },
+            include: { versions: { orderBy: { version: 'desc' }, take: 1 } }
+        });
+
+        if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        // Use the latest version or empty. If no version exists (created without file), we might need to handle it.
+        // Assuming we only use ONLYOFFICE for documents with files.
+        const latestVersion = doc.versions[0];
+        if (!latestVersion) {
+            return res.status(400).json({ error: 'No file associated with this document' });
+        }
+
+        const fileName = path.basename(latestVersion.filePath);
+        // Ensure this URL is accessible by the ONLYOFFICE container
+        // In dev (docker-compose), use host.docker.internal or configured IP.
+        const backendUrl = process.env.BACKEND_URL || 'http://host.docker.internal:3000';
+        const fileUrl = `${backendUrl}/uploads/${fileName}`;
+        const callbackUrl = `${backendUrl}/api/documents/track?docId=${id}&userId=${user.id}`; // Passing query params for tracking context if needed
+
+        const isReviewMode = review === 'true';
+
+        const config = {
+            document: {
+                fileType: "docx",
+                key: `${id}-${latestVersion.version}-${new Date(latestVersion.createdAt).getTime()}`, // Unique key for caching
+                title: doc.title,
+                url: fileUrl,
+                permissions: {
+                    edit: doc.status === 'DRAFT' || doc.status === 'ON_APPROVAL', // Allow edit in draft or approval? Usually only draft.
+                    // User requirements say: "Режим правки... Включение режима 'Track Changes' ... Идентификация"
+                    // If ON_APPROVAL, maybe only review?
+                    // For simplicity, let's allow edit based on status or user role logic later.
+                    // Assuming Draft = Edit.
+                    comment: true,
+                    download: true,
+                    print: true,
+                    review: true // Enable review mode
+                },
+            },
+            editorConfig: {
+                callbackUrl: callbackUrl,
+                user: {
+                    id: user.id,
+                    name: user.name
+                },
+                customization: {
+                    forcesave: true, // Force save to hit callback more often
+                    review: isReviewMode, // Enable review mode based on request
+                },
+                mode: doc.status === 'DRAFT' ? 'edit' : 'view', // Or 'edit' with review mode forced
+            },
+            token: ''
+        };
+
+        // Sign config
+        config.token = jwt.sign(config, 'secret123'); // MUST match ONLYOFFICE JWT_SECRET
+
+        res.json(config);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Config generation failed' });
+    }
+});
+
+// ONLYOFFICE TRACKING CALLBACK
+app.post('/api/documents/track', async (req: any, res: any) => {
+    // This endpoint is called by ONLYOFFICE.
+    // We MUST verify the token for security.
+
+    try {
+        const { status, url, token } = req.body;
+        // Also check authorization header if provided
+        const authHeader = req.headers['authorization'];
+        const jwtToken = token || (authHeader && authHeader.split(' ')[1]);
+
+        if (!jwtToken) {
+            return res.status(403).json({ error: 1, message: "No token provided" });
+        }
+
+        try {
+             jwt.verify(jwtToken, 'secret123'); // MUST match ONLYOFFICE JWT_SECRET
+        } catch (err) {
+             console.error("JWT verification failed:", err);
+             return res.status(403).json({ error: 1, message: "Invalid token" });
+        }
+
+        const { docId, userId } = req.query; // We passed this in callbackUrl
+
+        // 2 = Ready for saving, 6 = Force save
+        if (status === 2 || status === 6) {
+             if (!url) return res.json({ error: 0 });
+
+             // Download the new file
+             const response = await fetch(url);
+             if (!response.ok) throw new Error('Failed to download from ONLYOFFICE');
+
+             const arrayBuffer = await response.arrayBuffer();
+             const buffer = Buffer.from(arrayBuffer);
+
+             // Create a new version or overwrite?
+             // Usually better to create a new version or overwrite current.
+             // Let's overwrite existing file for simplicity or update the DocumentVersion logic.
+             // Finding the document to get the path.
+             const doc = await prisma.document.findUnique({
+                 where: { id: docId as string },
+                 include: { versions: { orderBy: { version: 'desc' }, take: 1 } }
+             });
+
+             if (doc && doc.versions[0]) {
+                 const oldPath = doc.versions[0].filePath;
+                 // We can overwrite the file
+                 fs.writeFileSync(oldPath, buffer);
+
+                 // Update updatedAt
+                 await prisma.document.update({
+                     where: { id: docId as string },
+                     data: { updatedAt: new Date() }
+                 });
+             }
+        }
+
+        res.json({ error: 0 });
+    } catch (e) {
+        console.error("Track error:", e);
+        res.json({ error: 1 });
+    }
 });
 
 // 6. UPDATE DOCUMENT CONTENT (Editor save)
