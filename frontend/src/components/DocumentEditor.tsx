@@ -39,7 +39,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isRe
     <div className="h-[800px] w-full">
       <OnlyOfficeEditor
         id="docxEditor"
-        documentServerUrl="https://documentserver-production-a665.up.railway.app/" // External URL for the browser
+        documentServerUrl="https://documentserver-production-e7b4.up.railway.app/" // External URL for the browser
         config={config}
         events_onDocumentReady={() => console.log("Document Ready")}
       />
