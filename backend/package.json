@@ -14,17 +14,18 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "^5.13.0",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "docx": "^8.5.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "googleapis": "^170.0.0",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.7.2",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.11.5",
-    "prisma": "^5.13.0",
-    "@prisma/client": "^5.13.0"
+    "prisma": "^5.13.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
