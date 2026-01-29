@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import axios from 'axios';
 import { GoogleDriveService } from './services/googleDriveService';
 
 dotenv.config();
@@ -15,6 +16,9 @@ const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-it';
+const ONLYOFFICE_API_URL = process.env.ONLYOFFICE_API_URL || 'http://localhost:8081';
+const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || 'secret123';
+const CALLBACK_URL = process.env.CALLBACK_URL || 'http://host.docker.internal:3000/api/onlyoffice/callback';
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -298,6 +302,167 @@ app.post('/api/documents/:id/google/cleanup', authenticateToken, async (req: any
         res.status(500).json({ error: 'Cleanup failed' });
      }
 });
+
+// ONLYOFFICE INTEGRATION
+
+// 1. GENERATE CONFIG
+app.get('/api/documents/:id/onlyoffice/config', authenticateToken, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    const doc = await prisma.document.findUnique({
+      where: { id },
+      include: { versions: { orderBy: { version: 'desc' }, take: 1 } }
+    });
+
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+    const latestVersion = doc.versions[0];
+    if (!latestVersion) return res.status(400).json({ error: 'No file to edit' });
+
+    // File info
+    const filePath = latestVersion.filePath;
+    const fileName = path.basename(filePath);
+    const fileExt = path.extname(fileName).replace('.', '');
+    const key = `${Date.now()}-${id}`; // Unique key for this session/version
+
+    // Determine permissions based on logic
+    // For now allow edit if not rejected? Or follows app logic.
+    // TZ doesn't specify permissions logic, so default to allow edit.
+    // Maybe check if user is author or approver?
+    const canEdit = true; // Simplified
+
+    // URL to download the file. ONLYOFFICE needs to reach this.
+    // We assume backend is reachable via host.docker.internal:3000 based on CALLBACK_URL hint
+    // Extract base from CALLBACK_URL
+    const baseUrl = CALLBACK_URL.replace('/api/onlyoffice/callback', '');
+    const fileUrl = `${baseUrl}/uploads/${fileName}`;
+
+    const config = {
+      document: {
+        fileType: fileExt,
+        key: key,
+        title: doc.title,
+        url: fileUrl,
+        permissions: {
+          download: true,
+          edit: canEdit,
+          print: true,
+          review: true, // Enable review mode
+        },
+      },
+      editorConfig: {
+        callbackUrl: CALLBACK_URL,
+        user: {
+          id: user.id,
+          name: user.name,
+        },
+        mode: canEdit ? 'edit' : 'view',
+        lang: 'ru', // Default to Russian as per TZ language
+      },
+      type: 'desktop', // or mobile
+      height: '100%',
+      width: '100%',
+    };
+
+    // Sign token
+    const token = jwt.sign(config, ONLYOFFICE_JWT_SECRET);
+
+    res.json({ ...config, token });
+  } catch (error) {
+    console.error('OnlyOffice Config Error:', error);
+    res.status(500).json({ error: 'Failed to generate config' });
+  }
+});
+
+// 2. CALLBACK HANDLER
+app.post('/api/onlyoffice/callback', async (req: any, res: any) => {
+  try {
+    const { token } = req.body;
+    let payload = req.body;
+
+    // Validate Token if present (TZ says "Validate JWT token")
+    if (token) {
+      try {
+        const decoded: any = jwt.verify(token, ONLYOFFICE_JWT_SECRET);
+        payload = decoded.payload || decoded; // Sometimes it's wrapped
+      } catch (err) {
+         console.error("Callback Token Invalid:", err);
+         return res.json({ error: 1, message: "Invalid token" });
+      }
+    }
+
+    const { status, url, users, key } = payload;
+
+    // Status 2: Ready for saving, 6: Force save
+    if (status === 2 || status === 6) {
+        if (!url) return res.json({ error: 0 });
+
+        // We need to find the document. The 'key' contains the ID?
+        // We generated key as `${Date.now()}-${id}`.
+        // But extracting ID from key is brittle if format changes.
+        // Better: Pass document ID in 'key' or query param in callbackUrl?
+        // But callbackUrl is static in config? No, we can append query.
+        // Let's rely on finding the file by name? No.
+        // Let's parse the key.
+        const parts = key.split('-');
+        const docId = parts.length > 1 ? parts.slice(1).join('-') : null;
+
+        if (!docId) {
+             console.error("Could not extract Document ID from key:", key);
+             return res.json({ error: 1, message: "Invalid key format" });
+        }
+
+        const doc = await prisma.document.findUnique({
+            where: { id: docId },
+            include: { versions: { orderBy: { version: 'desc' }, take: 1 } }
+        });
+
+        if (doc && doc.versions.length > 0) {
+            const latestVersion = doc.versions[0];
+            const destPath = path.resolve(latestVersion.filePath); // Overwrite existing file
+
+            console.log(`Downloading update for doc ${docId} from ${url}`);
+
+            const response = await axios({
+                method: 'GET',
+                url: url,
+                responseType: 'stream'
+            });
+
+            const writer = fs.createWriteStream(destPath);
+            response.data.pipe(writer);
+
+            await new Promise((resolve, reject) => {
+                writer.on('finish', () => resolve(true));
+                writer.on('error', reject);
+            });
+
+            // Update timestamp
+            await prisma.document.update({
+                where: { id: docId },
+                data: { updatedAt: new Date() }
+            });
+
+            console.log(`File saved: ${destPath}`);
+        } else {
+             console.error("Document not found for callback:", docId);
+        }
+    }
+
+    // Always return error: 0 to satisfy ONLYOFFICE
+    res.json({ error: 0 });
+  } catch (error) {
+    console.error("OnlyOffice Callback Error:", error);
+    // Even on error, OO expects { error: 0 } or it might retry endlessly.
+    // But if we failed to save, maybe we should return error?
+    // TZ says "Return response {"error": 0} (this is signal ... that everything is ok)".
+    // If it's NOT ok, we should probably return error != 0.
+    res.json({ error: 1, message: "Internal Server Error" });
+  }
+});
+
 
 // 6. UPDATE DOCUMENT CONTENT (Editor save)
 app.put('/api/documents/:id/content', authenticateToken, async (req: any, res: any) => {
