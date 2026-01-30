@@ -12,6 +12,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isRe
   const editorInitialized = useRef(false);
   const docEditorRef = useRef<any>(null);
 
+  // Получаем URL API OnlyOffice. 
+  // При локальной разработке это обычно http://localhost:8081
+  // В продакшене это должен быть публичный URL
+  const onlyOfficeUrl = import.meta.env.VITE_ONLYOFFICE_URL || 'http://localhost:8081';
+
   useEffect(() => {
     // Prevent double init
     if (editorInitialized.current) return;
@@ -25,23 +30,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isRe
         // Fetch config from backend
         const { data: config } = await axios.get(`/api/documents/${documentId}/onlyoffice/config`);
 
-        // Adjust config for review mode if needed
-        if (config.editorConfig) {
-             // If isReviewMode is true, we might want to ensure track changes is on or similar.
-             // But usually 'review' permission in config handles availability of review tab.
-             // config.document.permissions.review is set in backend.
-             // We can enforce mode here if needed.
-        }
-
         if ((window as any).DocsAPI) {
-             // Destroy existing if any (though we guard with ref)
              if (docEditorRef.current) {
-                 // Clean up not easily possible without destroying iframe, which react does on unmount
+                 // Clean up logic if needed
              }
 
-             // Initialize editor
-             // We use a unique ID for the placeholder to avoid conflicts if multiple editors?
-             // But we only show one here.
+             // Инициализация редактора
              docEditorRef.current = new (window as any).DocsAPI.DocEditor("onlyoffice-editor-placeholder", config);
              editorInitialized.current = true;
         } else {
@@ -56,14 +50,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isRe
     };
 
     const loadScript = () => {
+        // Проверяем, загружен ли уже скрипт
         if (!script) {
             script = document.createElement('script');
             script.id = scriptId;
-            script.src = 'http://localhost:8081/web-apps/apps/api/documents/api.js';
+            // ИСПОЛЬЗУЕМ ПЕРЕМЕННУЮ ВМЕСТО ХАРДКОДА
+            script.src = `${onlyOfficeUrl}/web-apps/apps/api/documents/api.js`;
             script.async = true;
             script.onload = () => initEditor();
             script.onerror = () => {
-                setError("Не удалось загрузить скрипт ONLYOFFICE (http://localhost:8081).");
+                setError(`Не удалось загрузить скрипт ONLYOFFICE (${onlyOfficeUrl}). Убедитесь, что сервер запущен и доступен.`);
                 setLoading(false);
             };
             document.body.appendChild(script);
@@ -79,15 +75,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isRe
     loadScript();
 
     return () => {
-      // Cleanup
       editorInitialized.current = false;
       if (docEditorRef.current) {
-          // If the API supports destroy, call it.
-          // Otherwise, React removing the div is enough usually.
           docEditorRef.current = null;
       }
     };
-  }, [documentId]);
+  }, [documentId, onlyOfficeUrl]);
 
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
 
