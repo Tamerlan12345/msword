@@ -34,6 +34,8 @@ services:
       - JWT_IN_BODY=true
     ports:
       - "8081:80" # Changed to 8081 to avoid conflict with adminer on 8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_log:/var/log/onlyoffice
