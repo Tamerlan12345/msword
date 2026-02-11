@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -8,46 +7,44 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: sizdocflow
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app-network
-
-  adminer:
-    image: adminer
-    restart: always
-    ports:
-      - "8080:8080"
-    networks:
-      - app-network
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [app-network]
 
   onlyoffice:
     image: onlyoffice/documentserver
-    container_name: msword-onlyoffice
     restart: always
     environment:
       - JWT_ENABLED=true
       - JWT_SECRET=secret123
       - JWT_HEADER=Authorization
       - JWT_IN_BODY=true
-    ports:
-      - "8081:80" # Changed to 8081 to avoid conflict with adminer on 8080
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    ports: ["8081:80"]
     volumes:
       - onlyoffice_data:/var/www/onlyoffice/Data
-      - onlyoffice_log:/var/log/onlyoffice
-      - onlyoffice_lib:/var/lib/onlyoffice
-    networks:
-      - app-network
+    networks: [app-network]
+
+  backend:
+    build:
+      context: ./backend
+    restart: always
+    ports: ["3000:3000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/sizdocflow
+      ONLYOFFICE_API_URL: http://localhost:8081
+      CALLBACK_URL: http://backend:3000/api/onlyoffice/callback
+      JWT_SECRET: super-secret-key-change-it
+      ONLYOFFICE_JWT_SECRET: secret123
+      PORT: 3000
+    volumes:
+      - ./uploads:/app/uploads
+      - ./frontend/dist:/frontend/dist
+    depends_on: [postgres, onlyoffice]
+    networks: [app-network]
 
 volumes:
   postgres_data:
   onlyoffice_data:
-  onlyoffice_log:
-  onlyoffice_lib:
 
 networks:
   app-network:
