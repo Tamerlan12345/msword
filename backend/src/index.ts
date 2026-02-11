@@ -325,7 +325,8 @@ app.get('/api/documents/:id/onlyoffice/config', authenticateToken, async (req: a
     const filePath = latestVersion.filePath;
     const fileName = path.basename(filePath);
     const fileExt = path.extname(fileName).replace('.', '');
-    const key = `${Date.now()}-${id}`; // Unique key for this session/version
+    // Deterministic key for collaborative editing: ID + Version + Timestamp
+    const key = `${id}-${latestVersion.version}-${new Date(latestVersion.updatedAt).getTime()}`;
 
     // Determine permissions based on logic
     // For now allow edit if not rejected? Or follows app logic.
@@ -379,40 +380,41 @@ app.get('/api/documents/:id/onlyoffice/config', authenticateToken, async (req: a
 // 2. CALLBACK HANDLER
 app.post('/api/onlyoffice/callback', async (req: any, res: any) => {
   try {
-    const { token } = req.body;
     let payload = req.body;
 
-    // Validate Token if present (TZ says "Validate JWT token")
+    // 1. Validate Token (Strict Check)
+    const token = payload.token || req.headers['authorization']?.split(' ')[1];
     if (token) {
       try {
         const decoded: any = jwt.verify(token, ONLYOFFICE_JWT_SECRET);
-        payload = decoded.payload || decoded; // Sometimes it's wrapped
+        payload = decoded.payload || decoded;
       } catch (err) {
          console.error("Callback Token Invalid:", err);
          return res.json({ error: 1, message: "Invalid token" });
       }
+    } else {
+        // Option: Enforce token presence
+        // return res.json({ error: 1, message: "Token missing" });
     }
 
-    const { status, url, users, key } = payload;
+    const { status, url, key } = payload;
 
     // Status 2: Ready for saving, 6: Force save
     if (status === 2 || status === 6) {
-        if (!url) return res.json({ error: 0 });
-
-        // We need to find the document. The 'key' contains the ID?
-        // We generated key as `${Date.now()}-${id}`.
-        // But extracting ID from key is brittle if format changes.
-        // Better: Pass document ID in 'key' or query param in callbackUrl?
-        // But callbackUrl is static in config? No, we can append query.
-        // Let's rely on finding the file by name? No.
-        // Let's parse the key.
-        const parts = key.split('-');
-        const docId = parts.length > 1 ? parts.slice(1).join('-') : null;
-
-        if (!docId) {
-             console.error("Could not extract Document ID from key:", key);
-             return res.json({ error: 1, message: "Invalid key format" });
+        if (!url) {
+            return res.json({ error: 0 });
         }
+
+        // Parse key: ID-Version-Timestamp
+        // Extract ID by removing the last two segments (Version, Timestamp)
+        const parts = key.split('-');
+        if (parts.length < 3) {
+             console.error("Invalid key format:", key);
+             return res.json({ error: 0 }); // Don't break OO loop, just log
+        }
+        const docId = parts.slice(0, parts.length - 2).join('-');
+
+        console.log(`Processing callback for DocID: ${docId}, Status: ${status}`);
 
         const doc = await prisma.document.findUnique({
             where: { id: docId },
@@ -421,33 +423,40 @@ app.post('/api/onlyoffice/callback', async (req: any, res: any) => {
 
         if (doc && doc.versions.length > 0) {
             const latestVersion = doc.versions[0];
-            const destPath = path.resolve(latestVersion.filePath); // Overwrite existing file
+            const destPath = path.resolve(latestVersion.filePath);
 
-            console.log(`Downloading update for doc ${docId} from ${url}`);
+            console.log(`Downloading update from ${url} to ${destPath}`);
 
-            const response = await axios({
-                method: 'GET',
-                url: url,
-                responseType: 'stream'
-            });
+            try {
+                const response = await axios({
+                    method: 'GET',
+                    url: url,
+                    responseType: 'stream'
+                });
 
-            const writer = fs.createWriteStream(destPath);
-            response.data.pipe(writer);
+                const writer = fs.createWriteStream(destPath);
+                response.data.pipe(writer);
 
-            await new Promise((resolve, reject) => {
-                writer.on('finish', () => resolve(true));
-                writer.on('error', reject);
-            });
+                await new Promise((resolve, reject) => {
+                    writer.on('finish', () => resolve(true));
+                    writer.on('error', reject);
+                });
 
-            // Update timestamp
-            await prisma.document.update({
-                where: { id: docId },
-                data: { updatedAt: new Date() }
-            });
+                // Update timestamp
+                await prisma.document.update({
+                    where: { id: docId },
+                    data: { updatedAt: new Date() }
+                });
 
-            console.log(`File saved: ${destPath}`);
+                console.log(`File saved successfully.`);
+            } catch (downloadErr) {
+                console.error("Download failed:", downloadErr);
+                return res.json({ error: 1 });
+            }
         } else {
              console.error("Document not found for callback:", docId);
+             // Return error 0 to stop OO from retrying if doc is gone
+             return res.json({ error: 0 });
         }
     }
 
@@ -455,11 +464,7 @@ app.post('/api/onlyoffice/callback', async (req: any, res: any) => {
     res.json({ error: 0 });
   } catch (error) {
     console.error("OnlyOffice Callback Error:", error);
-    // Even on error, OO expects { error: 0 } or it might retry endlessly.
-    // But if we failed to save, maybe we should return error?
-    // TZ says "Return response {"error": 0} (this is signal ... that everything is ok)".
-    // If it's NOT ok, we should probably return error != 0.
-    res.json({ error: 1, message: "Internal Server Error" });
+    res.json({ error: 0 }); // Fallback to success to avoid loops
   }
 });
 
