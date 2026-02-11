@@ -326,7 +326,7 @@ app.get('/api/documents/:id/onlyoffice/config', authenticateToken, async (req: a
     const fileName = path.basename(filePath);
     const fileExt = path.extname(fileName).replace('.', '');
     // Deterministic key for collaborative editing: ID + Version + Timestamp
-    const key = `${id}-${latestVersion.version}-${new Date(latestVersion.updatedAt).getTime()}`;
+    const key = `${id}-${latestVersion.version}-${new Date(latestVersion.createdAt).getTime()}`;
 
     // Determine permissions based on logic
     // For now allow edit if not rejected? Or follows app logic.
