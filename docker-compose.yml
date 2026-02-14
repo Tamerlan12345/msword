@@ -11,17 +11,17 @@ services:
     volumes: [postgres_data:/var/lib/postgresql/data]
     networks: [app-network]
 
-  onlyoffice:
-    image: onlyoffice/documentserver
+  collabora:
+    image: collabora/code
     restart: always
     environment:
-      - JWT_ENABLED=true
-      - JWT_SECRET=secret123
-      - JWT_HEADER=Authorization
-      - JWT_IN_BODY=true
-    ports: ["8081:80"]
-    volumes:
-      - onlyoffice_data:/var/www/onlyoffice/Data
+      - extra_params=--o:ssl.enable=false --o:ssl.termination=true
+      - username=${COLLABORA_USERNAME:-admin}
+      - password=${COLLABORA_PASSWORD:-admin}
+      - aliasgroup1=https://.*:443
+    ports: ["9980:9980"]
+    cap_add:
+      - MKNOD
     networks: [app-network]
 
   backend:
@@ -36,15 +36,18 @@ services:
       JWT_SECRET: super-secret-key-change-it
       ONLYOFFICE_JWT_SECRET: secret123
       PORT: 3000
+      # New variables for WOPI/Collabora
+      WOPI_HOST_URL: http://backend:3000
+      COLLABORA_URL: http://localhost:9980
     volumes:
       - ./uploads:/app/uploads
       - ./frontend/dist:/frontend/dist
-    depends_on: [postgres, onlyoffice]
+    depends_on: [postgres, collabora]
     networks: [app-network]
 
 volumes:
   postgres_data:
-  onlyoffice_data:
+  # onlyoffice_data: removed
 
 networks:
   app-network:

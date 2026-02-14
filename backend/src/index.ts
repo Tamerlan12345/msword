@@ -9,6 +9,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import { GoogleDriveService } from './services/googleDriveService';
+import wopiRoutes from './routes/wopiRoutes';
 
 dotenv.config();
 
@@ -27,6 +28,9 @@ app.use(express.json({ limit: '50mb' }));
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// WOPI Routes
+app.use('/api/wopi', wopiRoutes);
 
 // File upload setup
 const storage = multer.diskStorage({
