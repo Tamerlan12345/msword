@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import { CollaboraEditor } from './CollaboraEditor';
 
 interface DocumentEditorProps {
   documentId: string;
@@ -7,6 +8,13 @@ interface DocumentEditorProps {
 }
 
 export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isReviewMode }) => {
+  const useCollabora = true; // Enable Collabora by default for migration
+  const token = localStorage.getItem('token');
+
+  if (useCollabora && token) {
+      return <CollaboraEditor documentId={documentId} token={token} />;
+  }
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const editorInitialized = useRef(false);
@@ -18,6 +26,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isRe
   const onlyOfficeUrl = import.meta.env.VITE_ONLYOFFICE_URL || 'http://localhost:8081';
 
   useEffect(() => {
+    if (useCollabora) return; // Skip ONLYOFFICE init if using Collabora
+
     // Prevent double init
     if (editorInitialized.current) return;
 
