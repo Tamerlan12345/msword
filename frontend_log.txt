@@ -1,11 +1,9 @@
 
 > frontend@1.0.0 dev
-> vite
+> vite --port 5173
 
 
-  VITE v5.4.21  ready in 277 ms
+  VITE v5.4.21  ready in 364 ms
 
   ➜  Local:   http://localhost:5173/
   ➜  Network: use --host to expose
-8:34:33 AM [vite] hmr update /src/components/DocumentEditor.tsx, /src/index.css
-8:34:45 AM [vite] hmr update /src/pages/DocumentDetail.tsx, /src/index.css

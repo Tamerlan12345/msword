@@ -15,14 +15,16 @@ services:
     image: collabora/code
     restart: always
     environment:
+      # Важно: отключаем SSL внутри контейнера, так как Railway дает внешний SSL
       - extra_params=--o:ssl.enable=false --o:ssl.termination=true
-      - username=${COLLABORA_USERNAME:-admin}
-      - password=${COLLABORA_PASSWORD:-admin}
-      - aliasgroup1=https://.*:443
-    ports: ["9980:9980"]
-    cap_add:
-      - MKNOD
-    networks: [app-network]
+      # Разрешаем встраивание ТОЛЬКО для вашего домена бэкенда/фронтенда
+      - aliasgroup1=https://dmbp.up.railway.app
+      - username=admin
+      - password=secretpassword
+    ports:
+      - "9980:9980"
+    networks:
+      - app-network
 
   backend:
     build:
@@ -31,14 +33,12 @@ services:
     ports: ["3000:3000"]
     environment:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/sizdocflow
-      ONLYOFFICE_API_URL: http://localhost:8081
-      CALLBACK_URL: http://backend:3000/api/onlyoffice/callback
-      JWT_SECRET: super-secret-key-change-it
-      ONLYOFFICE_JWT_SECRET: secret123
+      JWT_SECRET: secret123
       PORT: 3000
-      # New variables for WOPI/Collabora
+      BACKEND_URL: https://dmbp.up.railway.app
+      # Optional: keep for local dev or internal references if code uses them
       WOPI_HOST_URL: http://backend:3000
-      COLLABORA_URL: http://localhost:9980
+      COLLABORA_URL: http://collabora:9980
     volumes:
       - ./uploads:/app/uploads
       - ./frontend/dist:/frontend/dist
@@ -47,7 +47,6 @@ services:
 
 volumes:
   postgres_data:
-  # onlyoffice_data: removed
 
 networks:
   app-network:
