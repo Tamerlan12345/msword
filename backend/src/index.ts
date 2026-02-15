@@ -47,6 +47,13 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // --- MIDDLEWARE ---
+app.get('/api/config', (req, res) => {
+  // Возвращаем переменную окружения, которую зададим в Railway
+  res.json({
+    collaboraUrl: process.env.COLLABORA_PUBLIC_URL || ''
+  });
+});
+
 const authenticateToken = (req: any, res: any, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
