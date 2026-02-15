@@ -16,7 +16,7 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-change-it';
+const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
 const ONLYOFFICE_API_URL = process.env.ONLYOFFICE_API_URL || 'http://localhost:8081';
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || 'secret123';
 const CALLBACK_URL = process.env.CALLBACK_URL || 'http://host.docker.internal:3000/api/onlyoffice/callback';
@@ -30,7 +30,7 @@ app.use(express.static(frontendBuildPath));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // WOPI Routes
-app.use('/api/wopi', wopiRoutes);
+app.use('/wopi', wopiRoutes);
 
 // File upload setup
 const storage = multer.diskStorage({
