@@ -27,11 +27,24 @@ export const CollaboraEditor: React.FC<CollaboraEditorProps> = ({ documentId, to
     fetchUrl();
   }, [documentId, token]);
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Listen to PostMessage events from Collabora
+      // useful for UI_SaveAs, App_LoadingStatus etc.
+      if (event.data) {
+        console.log('Collabora Message:', event.data);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   if (error) return <div className="p-8 text-center text-red-600">{error}</div>;
   if (!iframeSrc) return <div className="p-8 text-center text-gray-500">Загрузка редактора...</div>;
 
   return (
-    <div className="flex flex-col h-[800px] w-full border rounded-lg overflow-hidden bg-white shadow-sm relative">
+    <div className="flex flex-col h-[calc(100vh-4rem)] w-full border rounded-lg overflow-hidden bg-white shadow-sm relative">
       <iframe
         src={iframeSrc}
         title="Collabora Online Editor"
