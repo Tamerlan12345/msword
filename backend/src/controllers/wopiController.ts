@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://dmbp1.up.railway.app';
+const INTERNAL_WOPI_URL = process.env.INTERNAL_WOPI_URL || 'http://backend:3000';
 const COLLABORA_PUBLIC_URL = process.env.COLLABORA_PUBLIC_URL || 'http://localhost:9980';
 
 // Helper: Generate WOPI Token
@@ -27,7 +28,15 @@ export const generateWopiToken = async (userId: string, documentId: string) => {
 
 // Helper: Validate WOPI Token
 export const validateWopiToken = async (req: Request) => {
-  const token = req.query.access_token as string;
+  let token = req.query.access_token as string;
+
+  if (!token && req.headers.authorization) {
+      const parts = req.headers.authorization.split(' ');
+      if (parts.length === 2 && parts[0] === 'Bearer') {
+          token = parts[1];
+      }
+  }
+
   // Get document ID from params if available
   const documentId = req.params.id;
 
@@ -95,11 +104,12 @@ export const getIframeUrl = async (req: Request, res: Response) => {
     // Generate WOPI token
     const wopiToken = await generateWopiToken(user.id, id);
 
-    // WOPISrc
-    const wopiSrc = `${BACKEND_URL}/api/wopi/files/${id}`;
+    // WOPISrc - MUST use INTERNAL_WOPI_URL for Docker internal networking
+    const wopiSrc = `${INTERNAL_WOPI_URL}/api/wopi/files/${id}`;
 
     // Construct full iframe URL
     // WOPISrc must be encoded
+    // The iframe src uses the PUBLIC Collabora URL so the user's browser can load it.
     const url = `${COLLABORA_PUBLIC_URL}/browser/0.0.0/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${wopiToken}&lang=ru`;
 
     res.json({ url });
@@ -148,25 +158,40 @@ export const checkFileInfo = async (req: Request, res: Response) => {
 
         let userCanWrite = false;
         let userCanReview = false;
+        let readOnly = false;
 
-        if (isAdmin) {
+        // Permissions Matrix Logic
+        if (doc.status === 'APPROVED' || doc.status === 'REJECTED') {
+            // Final status: Read Only for everyone
+            userCanWrite = false;
+            userCanReview = false;
+            readOnly = true;
+        } else if (isAdmin) {
+            // Admin: Full access in active statuses
             userCanWrite = true;
             userCanReview = true;
         } else if (doc.status === 'DRAFT') {
-            // Author can edit
-            if (isAuthor) userCanWrite = true;
+            // Draft: Author can edit
+            if (isAuthor) {
+                userCanWrite = true;
+                userCanReview = false;
+            } else {
+                readOnly = true;
+            }
         } else if (doc.status === 'ON_APPROVAL') {
-            // Approvers can review/comment
+            // On Approval: Approver can review
             if (isApprover) {
                 userCanWrite = true;
                 userCanReview = true;
-            }
-            if (isAuthor) {
+            } else {
+                // Author and others: Read Only
                 userCanWrite = false;
+                userCanReview = false;
+                readOnly = true;
             }
-        } else if (doc.status === 'APPROVED' || doc.status === 'REJECTED') {
-            // Read-only
-            userCanWrite = false;
+        } else {
+             // Fallback
+             readOnly = true;
         }
 
         const fileInfo = {
@@ -177,6 +202,7 @@ export const checkFileInfo = async (req: Request, res: Response) => {
             Size: stats.size,
             UserCanWrite: userCanWrite,
             UserCanReview: userCanReview,
+            ReadOnly: readOnly,
             UserCanNotWriteRelative: true,
             SupportsUpdate: true,
             SupportsLocks: true,
@@ -254,10 +280,13 @@ export const putFile = async (req: Request, res: Response) => {
         // Update Document
         await prisma.document.update({
             where: { id },
-            data: { updatedAt: new Date() }
+            data: {
+                updatedAt: new Date(),
+                lastEditorId: wopiToken.userId
+            }
         });
 
-        res.status(200).json({ ItemVersion: new Date().toISOString() });
+        res.status(200).json({ ItemVersion: `v${nextVersionNum}` });
 
     } catch (error) {
         console.error('PutFile Error:', error);

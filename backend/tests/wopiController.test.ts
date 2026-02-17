@@ -1,0 +1,255 @@
+import { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+
+// Mock @prisma/client with a factory that exposes the mock instance
+jest.mock('@prisma/client', () => {
+    const mPrisma = {
+        wopiToken: {
+            findUnique: jest.fn(),
+            delete: jest.fn(),
+            create: jest.fn(),
+            deleteMany: jest.fn(),
+        },
+        document: {
+            findUnique: jest.fn(),
+            update: jest.fn(),
+        },
+        documentVersion: {
+            create: jest.fn(),
+        },
+        wopiLock: {
+            findUnique: jest.fn(),
+            update: jest.fn(),
+            create: jest.fn(),
+            delete: jest.fn()
+        }
+    };
+    const MockPrismaClient = jest.fn(() => mPrisma);
+    // Attach the mock instance to the constructor so we can access it in tests
+    (MockPrismaClient as any).mockInstance = mPrisma;
+    return {
+        PrismaClient: MockPrismaClient
+    };
+});
+
+// Import after mock
+import { PrismaClient } from '@prisma/client';
+import { checkFileInfo, validateWopiToken, putFile } from '../src/controllers/wopiController';
+
+// Get the reference to the mock instance
+const mPrisma = (PrismaClient as any).mockInstance;
+
+jest.mock('fs', () => ({
+    statSync: jest.fn(),
+    writeFileSync: jest.fn(),
+}));
+
+jest.mock('path', () => {
+    const original = jest.requireActual('path') as any;
+    return {
+        ...original,
+        resolve: jest.fn((p) => p),
+        dirname: jest.fn((p) => '/tmp'),
+    };
+});
+
+describe('WOPI Controller', () => {
+    let req: Partial<Request>;
+    let res: Partial<Response>;
+    let json: jest.Mock;
+    let status: jest.Mock;
+
+    beforeEach(() => {
+        json = jest.fn();
+        status = jest.fn().mockReturnValue({ json });
+        res = { json, status, download: jest.fn(), setHeader: jest.fn(), sendStatus: jest.fn() };
+        req = {
+            params: { id: 'doc1' },
+            query: { access_token: 'token1' },
+            headers: {},
+        };
+        jest.clearAllMocks();
+    });
+
+    test('validateWopiToken checks Authorization header', async () => {
+        req.query = {};
+        req.headers = { authorization: 'Bearer token1' };
+
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'user1' },
+            documentId: 'doc1'
+        });
+
+        const token = await validateWopiToken(req as Request);
+        expect(token).toBeTruthy();
+        expect(token?.token).toBe('token1');
+    });
+
+    test('checkFileInfo permissions - Admin has full access', async () => {
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'admin1', role: 'ADMIN', name: 'Admin User' },
+            documentId: 'doc1'
+        });
+
+        mPrisma.document.findUnique.mockResolvedValue({
+            id: 'doc1',
+            authorId: 'user2',
+            status: 'ON_APPROVAL',
+            versions: [{ version: 1, filePath: '/tmp/file.docx' }],
+            approvers: [],
+            updatedAt: new Date(),
+        });
+
+        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
+
+        await checkFileInfo(req as Request, res as Response);
+
+        expect(json).toHaveBeenCalledWith(expect.objectContaining({
+            UserCanWrite: true,
+            UserCanReview: true,
+            ReadOnly: false,
+            UserFriendlyName: 'Admin User',
+        }));
+    });
+
+    test('checkFileInfo permissions - Author/Draft', async () => {
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'author1', role: 'USER', name: 'Author User' },
+            documentId: 'doc1'
+        });
+
+        mPrisma.document.findUnique.mockResolvedValue({
+            id: 'doc1',
+            authorId: 'author1',
+            status: 'DRAFT',
+            versions: [{ version: 1, filePath: '/tmp/file.docx' }],
+            approvers: [],
+            updatedAt: new Date(),
+        });
+
+        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
+
+        await checkFileInfo(req as Request, res as Response);
+
+        expect(json).toHaveBeenCalledWith(expect.objectContaining({
+            UserCanWrite: true,
+            UserCanReview: false,
+            ReadOnly: false,
+            UserFriendlyName: 'Author User',
+        }));
+    });
+
+    test('checkFileInfo permissions - Approver/OnApproval', async () => {
+         mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'approver1', role: 'APPROVER', name: 'Approver User' },
+            documentId: 'doc1'
+        });
+
+        mPrisma.document.findUnique.mockResolvedValue({
+            id: 'doc1',
+            authorId: 'author1',
+            status: 'ON_APPROVAL',
+            versions: [{ version: 1, filePath: '/tmp/file.docx' }],
+            approvers: [{ userId: 'approver1' }],
+            updatedAt: new Date(),
+        });
+
+        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
+
+        await checkFileInfo(req as Request, res as Response);
+
+        expect(json).toHaveBeenCalledWith(expect.objectContaining({
+            UserCanWrite: true,
+            UserCanReview: true,
+            ReadOnly: false,
+            UserFriendlyName: 'Approver User',
+        }));
+    });
+
+    test('checkFileInfo permissions - Approved (ReadOnly)', async () => {
+         mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'anyUser', role: 'ADMIN', name: 'Any User' },
+            documentId: 'doc1'
+        });
+
+        mPrisma.document.findUnique.mockResolvedValue({
+            id: 'doc1',
+            authorId: 'author1',
+            status: 'APPROVED',
+            versions: [{ version: 1, filePath: '/tmp/file.docx' }],
+            approvers: [],
+            updatedAt: new Date(),
+        });
+
+        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
+
+        await checkFileInfo(req as Request, res as Response);
+
+        expect(json).toHaveBeenCalledWith(expect.objectContaining({
+            UserCanWrite: false,
+            UserCanReview: false,
+            ReadOnly: true,
+            SupportsReviewing: true
+        }));
+    });
+
+    test('putFile versioning - Author can update', async () => {
+        const fileContent = Buffer.from('new content');
+        req.body = fileContent;
+        // Mock validateWopiToken by checking Authorization header directly in test logic isn't enough,
+        // we need to mock the prisma call inside validateWopiToken.
+        req.headers = { authorization: 'Bearer token1' };
+
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            userId: 'author1',
+            user: { id: 'author1', role: 'USER' },
+            documentId: 'doc1'
+        });
+
+        mPrisma.document.findUnique.mockResolvedValue({
+            id: 'doc1',
+            authorId: 'author1',
+            status: 'DRAFT',
+            versions: [{ version: 1, filePath: '/tmp/file_v1.docx' }],
+            approvers: [],
+            updatedAt: new Date(),
+        });
+
+        mPrisma.documentVersion.create.mockResolvedValue({ id: 'ver2' });
+        mPrisma.document.update.mockResolvedValue({ id: 'doc1' });
+
+        (fs.writeFileSync as jest.Mock).mockReturnValue(undefined);
+
+        await putFile(req as Request, res as Response);
+
+        expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/file_v2.docx', fileContent);
+        expect(mPrisma.documentVersion.create).toHaveBeenCalledWith({
+            data: {
+                documentId: 'doc1',
+                version: 2,
+                filePath: '/tmp/file_v2.docx'
+            }
+        });
+        expect(mPrisma.document.update).toHaveBeenCalledWith({
+            where: { id: 'doc1' },
+            data: {
+                updatedAt: expect.any(Date),
+                lastEditorId: 'author1'
+            }
+        });
+        expect(json).toHaveBeenCalledWith({ ItemVersion: 'v2' });
+    });
+});
