@@ -6,14 +6,14 @@ import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
-const BACKEND_URL = process.env.BACKEND_URL || 'https://dmbp1.up.railway.app';
+const BACKEND_PUBLIC_URL = process.env.BACKEND_PUBLIC_URL || 'https://dmbp1.up.railway.app';
 const INTERNAL_WOPI_URL = process.env.INTERNAL_WOPI_URL || 'http://backend:3000';
 const COLLABORA_PUBLIC_URL = process.env.COLLABORA_PUBLIC_URL || 'http://localhost:9980';
 
 // Helper: Generate WOPI Token
 export const generateWopiToken = async (userId: string, documentId: string) => {
   const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours validity
+  expiresAt.setHours(expiresAt.getHours() + 4); // Short-lived (4 hours)
 
   const tokenEntry = await prisma.wopiToken.create({
     data: {
@@ -28,7 +28,9 @@ export const generateWopiToken = async (userId: string, documentId: string) => {
 
 // Helper: Validate WOPI Token
 export const validateWopiToken = async (req: Request) => {
-  let token = req.query.access_token as string;
+  let token = req.query.access_token;
+  if (Array.isArray(token)) token = token[0];
+  token = token as string;
 
   if (!token && req.headers.authorization) {
       const parts = req.headers.authorization.split(' ');
@@ -104,8 +106,8 @@ export const getIframeUrl = async (req: Request, res: Response) => {
     // Generate WOPI token
     const wopiToken = await generateWopiToken(user.id, id);
 
-    // WOPISrc - MUST use INTERNAL_WOPI_URL for Docker internal networking
-    const wopiSrc = `${INTERNAL_WOPI_URL}/api/wopi/files/${id}`;
+    // WOPISrc - MUST use BACKEND_PUBLIC_URL so Collabora can reach us from outside
+    const wopiSrc = `${BACKEND_PUBLIC_URL}/api/wopi/files/${id}`;
 
     // Construct full iframe URL
     // WOPISrc must be encoded
@@ -161,6 +163,7 @@ export const checkFileInfo = async (req: Request, res: Response) => {
         let readOnly = false;
 
         // Permissions Matrix Logic
+        // Status: APPROVED, REJECTED -> Archive (Read Only)
         if (doc.status === 'APPROVED' || doc.status === 'REJECTED') {
             // Final status: Read Only for everyone
             userCanWrite = false;
@@ -208,7 +211,7 @@ export const checkFileInfo = async (req: Request, res: Response) => {
             SupportsLocks: true,
             SupportsReviewing: true,
             DisableChangeTrackingRecord: false,
-            PostMessageOrigin: BACKEND_URL,
+            PostMessageOrigin: BACKEND_PUBLIC_URL,
             LastModifiedTime: doc.updatedAt.toISOString(),
         };
 
