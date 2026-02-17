@@ -8,26 +8,25 @@ interface DocumentEditorProps {
 
 export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) => {
   const token = localStorage.getItem('token');
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://dmbp1.up.railway.app';
-  const [collaboraUrl, setCollaboraUrl] = useState<string | null>(null);
+  const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchConfig = async () => {
+    const fetchIframeUrl = async () => {
       try {
-        const res = await axios.get('/api/config');
-        if (res.data.collaboraUrl) {
-          setCollaboraUrl(res.data.collaboraUrl);
-        } else {
-          setError("Администратор не настроил COLLABORA_PUBLIC_URL на сервере");
-        }
+        // Fetch the secure URL (which includes WOPISrc and access_token=UUID)
+        const res = await axios.get(`/api/wopi/iframe/${documentId}`);
+        setIframeSrc(res.data.url);
       } catch (err) {
-        console.error("Failed to fetch config", err);
-        setError("Ошибка получения конфигурации");
+        console.error("Failed to fetch WOPI URL", err);
+        setError("Ошибка загрузки редактора (WOPI Error). Попробуйте обновить страницу.");
       }
     };
-    fetchConfig();
-  }, []);
+
+    if (documentId) {
+        fetchIframeUrl();
+    }
+  }, [documentId]);
 
   if (!token) {
       return <div className="p-8 text-center text-red-600">Нет токена доступа. Пожалуйста, войдите снова.</div>;
@@ -37,12 +36,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) =>
       return <div className="p-8 text-center text-red-600">{error}</div>;
   }
 
-  if (!collaboraUrl) {
-      return <div className="p-8 text-center text-gray-500">Загрузка настроек редактора...</div>;
+  if (!iframeSrc) {
+      return <div className="p-8 text-center text-gray-500">Загрузка редактора...</div>;
   }
-
-  const wopiSrc = `${apiUrl}/api/wopi/files/${documentId}`;
-  const iframeSrc = `${collaboraUrl}/browser/dist/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${encodeURIComponent(token)}`;
 
   return (
     <div className="flex flex-col h-[800px] w-full border rounded-lg overflow-hidden bg-white shadow-sm relative">
