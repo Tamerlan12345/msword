@@ -22,7 +22,15 @@ const ONLYOFFICE_API_URL = process.env.ONLYOFFICE_API_URL || 'http://localhost:8
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || 'secret123';
 const CALLBACK_URL = process.env.CALLBACK_URL || 'http://host.docker.internal:3000/api/onlyoffice/callback';
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://collabora-production-1557.up.railway.app',
+    'https://dmbp1.up.railway.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
 app.use(express.json({ limit: '50mb' }));
 
 // Serve frontend static files
