@@ -145,6 +145,15 @@ export const checkFileInfo = async (req: Request, res: Response) => {
         if (!result) return res.status(404).json({ error: 'File not found' });
         const { doc, filePath } = result;
 
+        // Ensure file exists (create stub if missing)
+        if (!fs.existsSync(filePath)) {
+            try {
+                fs.writeFileSync(filePath, Buffer.from(''));
+            } catch (e) {
+                console.error("Failed to create stub file:", e);
+            }
+        }
+
         let stats;
         try {
             stats = fs.statSync(filePath);
