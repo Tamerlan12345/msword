@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 const router = express.Router();
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
-const BACKEND_URL = process.env.BACKEND_URL || 'https://dmbp.up.railway.app';
+const BACKEND_URL = process.env.BACKEND_URL || 'https://dmbp1.up.railway.app';
 
 // Helper to extract user
 const getUserFromRequest = (req: any) => {
