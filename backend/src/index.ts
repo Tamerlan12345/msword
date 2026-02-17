@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
+import { cleanupTokens } from './controllers/wopiController';
 
 dotenv.config();
 
@@ -658,4 +659,6 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  // Cleanup tokens every hour
+  setInterval(cleanupTokens, 60 * 60 * 1000);
 });

@@ -20,6 +20,7 @@ model User {
   documents Document[] @relation("CreatedDocument")
   approvals DocumentApprover[]
   comments  Comment[]
+  wopiTokens WopiToken[]
 }
 
 model Document {
@@ -39,6 +40,29 @@ model Document {
   versions  DocumentVersion[]
   approvers DocumentApprover[]
   comments  Comment[]
+  wopiTokens WopiToken[]
+  wopiLock   WopiLock?
+}
+
+model WopiToken {
+  token      String   @id @default(uuid())
+  userId     String
+  documentId String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+  document   Document @relation(fields: [documentId], references: [id])
+}
+
+model WopiLock {
+  id         String   @id @default(uuid())
+  documentId String   @unique
+  lockId     String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id])
 }
 
 model DocumentApprover {
