@@ -19,7 +19,6 @@ services:
       - extra_params=--o:ssl.enable=false --o:ssl.termination=true
       # Разрешаем встраивание ТОЛЬКО для вашего домена бэкенда/фронтенда
       - aliasgroup1=https://dmbp.up.railway.app
-      - aliasgroup2=http://localhost:3000
       - username=admin
       - password=secretpassword
     ports:

@@ -49,8 +49,7 @@ router.get('/iframe/:id', async (req: any, res: any) => {
 
     // Construct full iframe URL
     // WOPISrc must be encoded
-    // Add lang=ru and ui_mode=browser as per requirements
-    const url = `${COLLABORA_PUBLIC_URL}/browser/0.0.0/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${token}&lang=ru&ui_mode=browser`;
+    const url = `${COLLABORA_PUBLIC_URL}/browser/0.0.0/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${token}`;
 
     res.json({ url });
   } catch (error) {
@@ -80,13 +79,10 @@ router.get('/files/:id', async (req: any, res: any) => {
       BaseFileName: path.basename(filePath),
       OwnerId: "admin",
       UserId: user.id,
-      UserFriendlyName: user.name || user.email || "Anonymous",
       Size: stats.size,
-      UserCanWrite: doc.status !== 'APPROVED' && doc.status !== 'REJECTED',
+      UserCanWrite: true,
       PostMessageOrigin: BACKEND_URL,
       LastModifiedTime: doc.updatedAt.toISOString(),
-      EnableTrackChanges: true,
-      EnableReviewing: true,
     };
 
     res.json(fileInfo);
