@@ -4,29 +4,24 @@ import axios from 'axios';
 import { Header } from '../components/Header';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { ArrowLeft, Save, CheckCircle, XCircle, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, XCircle, UserPlus, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { DocumentEditor } from '../components/DocumentEditor';
 
 export const DocumentDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [doc, setDoc] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]); // Все юзеры для выбора
-  const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]); // Выбранные ID
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedApprovers, setSelectedApprovers] = useState<string[]>([]);
   const [isEditingApprovers, setIsEditingApprovers] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Default closed
 
-  // Настройка редактора Tiptap (используется если нет файла)
   const editor = useEditor({
     extensions: [StarterKit],
     content: '<p>Загрузка...</p>',
-    onUpdate: ({ editor }) => {
-      // Здесь можно реализовать автосохранение
-      // const json = editor.getJSON();
-    },
   });
 
-  // Загрузка данных
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -38,10 +33,8 @@ export const DocumentDetail = () => {
         setDoc(docRes.data);
         setUsers(usersRes.data);
 
-        // Установка контента в редактор (только если нет файла)
         if (docRes.data.versions.length === 0) {
             if (editor && docRes.data.content) {
-                // Если контент - JSON строка, парсим, иначе HTML
                 try {
                     editor.commands.setContent(JSON.parse(docRes.data.content));
                 } catch {
@@ -51,7 +44,6 @@ export const DocumentDetail = () => {
                 editor.commands.setContent('<p>Начните писать здесь...</p>');
             }
         }
-
       } catch (error) {
         console.error(error);
       }
@@ -59,7 +51,6 @@ export const DocumentDetail = () => {
     fetchData();
   }, [id, editor]);
 
-  // Сохранение контента (для Tiptap)
   const handleSaveContent = async () => {
     if (!editor) return;
     const content = JSON.stringify(editor.getJSON());
@@ -71,16 +62,13 @@ export const DocumentDetail = () => {
     }
   };
 
-  // Отправка на согласование с выбором людей
   const handleSendToApproval = async () => {
     if (selectedApprovers.length === 0) return alert('Выберите хотя бы одного согласующего');
 
     try {
-      // Сначала сохраняем текст (если это tiptap)
       if (doc.versions.length === 0) {
           await handleSaveContent();
       }
-      // Потом назначаем людей
       await axios.post(`/api/documents/${id}/approvers`, { userIds: selectedApprovers });
 
       setDoc({ ...doc, status: 'ON_APPROVAL' });
@@ -91,7 +79,6 @@ export const DocumentDetail = () => {
     }
   };
 
-  // Голосование (для согласующего)
   const handleVote = async (status: 'APPROVED' | 'REJECTED') => {
     const comment = status === 'REJECTED' ? prompt('Укажите причину отказа:') : null;
     if (status === 'REJECTED' && !comment) return;
@@ -99,7 +86,7 @@ export const DocumentDetail = () => {
     try {
       await axios.put(`/api/documents/${id}/approve`, { status, comment });
       alert('Ваш голос учтен');
-      navigate('/'); // Вернуться на дашборд
+      navigate('/');
     } catch (e) {
       alert('Ошибка');
     }
@@ -108,121 +95,147 @@ export const DocumentDetail = () => {
   if (!doc) return <div>Загрузка...</div>;
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8] pb-20">
+    <div className="h-screen flex flex-col bg-[#F5F6F8] overflow-hidden">
       <Header />
 
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-500 mb-4">
-          <ArrowLeft className="w-4 h-4" /> Назад
-        </button>
+      {/* Main Container */}
+      <div className="flex flex-1 pt-16 overflow-hidden relative">
 
-        <div className="grid grid-cols-3 gap-6">
-
-          {/* ЛЕВАЯ КОЛОНКА: Редактор */}
-          <div className="col-span-2 bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
-            <div className="flex justify-between items-center mb-4 border-b pb-4">
-              <h1 className="text-2xl font-bold">{doc.title}</h1>
-              <div className="flex gap-2">
-                 {doc.versions.length > 0 && doc.status === 'DRAFT' && (
-                     <button
-                        onClick={() => setIsReviewMode(!isReviewMode)}
-                        className={`px-3 py-1 rounded border text-sm ${isReviewMode ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-300'}`}
-                     >
-                        {isReviewMode ? 'Режим рецензирования ВКЛ' : 'Режим рецензирования'}
-                     </button>
-                 )}
-
-                 {doc.status === 'DRAFT' && doc.versions.length === 0 && (
-                    <button onClick={handleSaveContent} className="flex items-center gap-2 text-primary hover:bg-blue-50 px-3 py-1 rounded">
-                    <Save className="w-4 h-4" /> Сохранить
+        {/* Editor Area */}
+        <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'mr-80' : 'mr-0'}`}>
+            {/* Toolbar / Header for Doc */}
+            <div className="bg-white border-b px-4 py-2 flex justify-between items-center h-12 shadow-sm z-10">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700">
+                        <ArrowLeft className="w-5 h-5" />
                     </button>
-                 )}
-              </div>
+                    <h1 className="text-lg font-bold truncate max-w-md">{doc.title}</h1>
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold
+                        ${doc.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                        doc.status === 'ON_APPROVAL' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                        {doc.status}
+                    </span>
+                </div>
+
+                <div className="flex gap-2">
+                     {doc.versions.length > 0 && doc.status === 'DRAFT' && (
+                         <button
+                            onClick={() => setIsReviewMode(!isReviewMode)}
+                            className={`px-3 py-1 rounded border text-xs flex items-center gap-1 ${isReviewMode ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-50 border-gray-300'}`}
+                         >
+                            {isReviewMode ? 'Рецензирование: ВКЛ' : 'Режим рецензирования'}
+                         </button>
+                     )}
+                     {doc.status === 'DRAFT' && doc.versions.length === 0 && (
+                        <button onClick={handleSaveContent} className="flex items-center gap-1 text-primary hover:bg-blue-50 px-3 py-1 rounded text-xs">
+                        <Save className="w-4 h-4" /> Сохранить
+                        </button>
+                     )}
+                     <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="p-1 hover:bg-gray-100 rounded text-gray-600 ml-2"
+                        title={isSidebarOpen ? "Скрыть панель" : "Показать панель"}
+                     >
+                        <Menu className="w-5 h-5" />
+                     </button>
+                </div>
             </div>
 
-            {/* Область редактора */}
-            <div className="prose max-w-none border p-4 rounded min-h-[500px] outline-none w-full">
+            {/* Editor Itself */}
+            <div className="flex-1 bg-gray-100 overflow-hidden relative">
                {doc.versions.length > 0 ? (
-                   <DocumentEditor documentId={doc.id} isReviewMode={isReviewMode} />
+                   /* Pass full height minus header to ensure fit */
+                   <div className="h-full w-full">
+                       <DocumentEditor documentId={doc.id} isReviewMode={isReviewMode} />
+                   </div>
                ) : (
-                   <EditorContent editor={editor} disabled={doc.status !== 'DRAFT'} />
+                   <div className="h-full w-full p-4 overflow-y-auto bg-white">
+                        <EditorContent editor={editor} className="prose max-w-none outline-none h-full" disabled={doc.status !== 'DRAFT'} />
+                   </div>
                )}
             </div>
-          </div>
-
-          {/* ПРАВАЯ КОЛОНКА: Управление и Согласование */}
-          <div className="col-span-1 space-y-6">
-
-            {/* Блок статуса */}
-            <div className="bg-white p-6 rounded-lg shadow-sm">
-               <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Статус</h3>
-               <div className={`inline-flex px-3 py-1 rounded-full text-sm font-bold
-                 ${doc.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                   doc.status === 'ON_APPROVAL' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                 {doc.status}
-               </div>
-            </div>
-
-            {/* Блок действий для АВТОРА (Черновик) */}
-            {doc.status === 'DRAFT' && (
-              <div className="bg-white p-6 rounded-lg shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-4">Маршрут согласования</h3>
-
-                {!isEditingApprovers ? (
-                    <button
-                      onClick={() => setIsEditingApprovers(true)}
-                      className="w-full py-2 border-2 border-dashed border-gray-300 rounded text-gray-500 hover:border-primary hover:text-primary flex items-center justify-center gap-2"
-                    >
-                      <UserPlus className="w-4 h-4" /> Выбрать согласующих
-                    </button>
-                ) : (
-                    <div className="space-y-3">
-                        <p className="text-xs text-gray-500">Выберите сотрудников:</p>
-                        <div className="max-h-40 overflow-y-auto border rounded p-2">
-                           {users.map(u => (
-                               <label key={u.id} className="flex items-center gap-2 p-1 hover:bg-gray-50 cursor-pointer">
-                                   <input
-                                     type="checkbox"
-                                     checked={selectedApprovers.includes(u.id)}
-                                     onChange={(e) => {
-                                         if(e.target.checked) setSelectedApprovers([...selectedApprovers, u.id]);
-                                         else setSelectedApprovers(selectedApprovers.filter(id => id !== u.id));
-                                     }}
-                                   />
-                                   <span className="text-sm">{u.name || u.email}</span>
-                               </label>
-                           ))}
-                        </div>
-                        <div className="flex gap-2">
-                           <button onClick={handleSendToApproval} className="w-full bg-primary text-white py-2 rounded text-sm hover:bg-primary-dark">
-                             Отправить
-                           </button>
-                           <button onClick={() => setIsEditingApprovers(false)} className="px-3 py-2 text-gray-500 text-sm">
-                             Отмена
-                           </button>
-                        </div>
-                    </div>
-                )}
-              </div>
-            )}
-
-            {/* Блок действий для СОГЛАСУЮЩЕГО */}
-            {doc.status === 'ON_APPROVAL' && (
-              <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-500">
-                <h3 className="font-bold mb-4">Требуется ваше решение</h3>
-                <div className="flex gap-3">
-                  <button onClick={() => handleVote('APPROVED')} className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 flex justify-center items-center gap-2">
-                    <CheckCircle className="w-4 h-4" /> Принять
-                  </button>
-                  <button onClick={() => handleVote('REJECTED')} className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded hover:bg-red-100 flex justify-center items-center gap-2">
-                    <XCircle className="w-4 h-4" /> Отказать
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
         </div>
+
+        {/* Sidebar (Right Drawer) */}
+        <div className={`absolute top-0 right-0 h-full w-80 bg-white shadow-xl border-l transform transition-transform duration-300 pt-16 z-20 overflow-y-auto
+            ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+
+            <div className="p-4 space-y-6">
+                <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-gray-700">Управление</h3>
+                    <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-gray-600">
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Status Block */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="text-xs text-gray-500 uppercase mb-1">Текущий статус</div>
+                    <div className="font-semibold">{doc.status}</div>
+                    <div className="text-xs text-gray-400 mt-2">
+                        Автор: {doc.author?.name}
+                    </div>
+                </div>
+
+                {/* Actions for DRAFT */}
+                {doc.status === 'DRAFT' && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold mb-3">Согласование</h4>
+                    {!isEditingApprovers ? (
+                        <button
+                          onClick={() => setIsEditingApprovers(true)}
+                          className="w-full py-2 border border-dashed border-gray-300 rounded text-gray-600 hover:border-primary hover:text-primary flex items-center justify-center gap-2 text-sm"
+                        >
+                          <UserPlus className="w-4 h-4" /> Назначить
+                        </button>
+                    ) : (
+                        <div className="space-y-3">
+                            <p className="text-xs text-gray-500">Выберите сотрудников:</p>
+                            <div className="max-h-60 overflow-y-auto border rounded p-2 text-sm">
+                               {users.map(u => (
+                                   <label key={u.id} className="flex items-center gap-2 p-1 hover:bg-gray-50 cursor-pointer">
+                                       <input
+                                         type="checkbox"
+                                         checked={selectedApprovers.includes(u.id)}
+                                         onChange={(e) => {
+                                             if(e.target.checked) setSelectedApprovers([...selectedApprovers, u.id]);
+                                             else setSelectedApprovers(selectedApprovers.filter(id => id !== u.id));
+                                         }}
+                                       />
+                                       <span>{u.name || u.email}</span>
+                                   </label>
+                               ))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                               <button onClick={handleSendToApproval} className="bg-primary text-white py-1.5 rounded text-xs hover:bg-primary-dark">
+                                 Отправить
+                               </button>
+                               <button onClick={() => setIsEditingApprovers(false)} className="bg-gray-100 text-gray-600 py-1.5 rounded text-xs hover:bg-gray-200">
+                                 Отмена
+                               </button>
+                            </div>
+                        </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions for APPROVER */}
+                {doc.status === 'ON_APPROVAL' && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold mb-3">Ваше решение</h4>
+                    <div className="flex flex-col gap-2">
+                      <button onClick={() => handleVote('APPROVED')} className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 flex justify-center items-center gap-2 text-sm">
+                        <CheckCircle className="w-4 h-4" /> Принять
+                      </button>
+                      <button onClick={() => handleVote('REJECTED')} className="w-full bg-red-50 text-red-600 border border-red-200 py-2 rounded hover:bg-red-100 flex justify-center items-center gap-2 text-sm">
+                        <XCircle className="w-4 h-4" /> Отказать
+                      </button>
+                    </div>
+                  </div>
+                )}
+            </div>
+        </div>
+
       </div>
     </div>
   );

@@ -206,11 +206,23 @@ export const checkFileInfo = async (req: Request, res: Response) => {
              readOnly = true;
         }
 
+        let userFriendlyName = user.name || user.email;
+
+        if (user.surname && user.firstname) {
+            const f = user.firstname[0].toUpperCase() + '.';
+            const p = user.patronymic ? user.patronymic[0].toUpperCase() + '.' : '';
+            const dept = user.department ? ` (${user.department})` : '';
+            userFriendlyName = `${user.surname} ${f}${p}${dept}`;
+        } else if (user.name) {
+             const dept = user.department ? ` (${user.department})` : '';
+             userFriendlyName = `${user.name}${dept}`;
+        }
+
         const fileInfo = {
             BaseFileName: path.basename(filePath),
             OwnerId: doc.authorId,
             UserId: user.id,
-            UserFriendlyName: user.name || user.email,
+            UserFriendlyName: userFriendlyName,
             Size: stats.size,
             UserCanWrite: userCanWrite,
             UserCanReview: userCanReview,

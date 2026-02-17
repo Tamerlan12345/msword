@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
+import userRoutes from './routes/userRoutes';
 import { cleanupTokens } from './controllers/wopiController';
 
 dotenv.config();
@@ -119,17 +120,8 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// GET USERS (For approver selection)
-app.get('/api/users', authenticateToken, async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      select: { id: true, name: true, email: true, role: true }
-    });
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
+// GET USERS (For approver selection) & PROFILE
+app.use('/api/users', authenticateToken, userRoutes);
 
 // 3. UPLOAD DOCUMENT
 app.post('/api/documents', authenticateToken, upload.single('file'), async (req: any, res: any) => {

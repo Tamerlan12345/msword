@@ -14,6 +14,11 @@ model User {
   name      String?
   role      String   @default("APPROVER") // ADMIN, APPROVER
 
+  surname    String?
+  firstname  String?
+  patronymic String?
+  department String?
+
   createdAt DateTime @default(now())
 
   // Relations
