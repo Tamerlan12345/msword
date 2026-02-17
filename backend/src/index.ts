@@ -30,7 +30,7 @@ app.use(express.static(frontendBuildPath));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // WOPI Routes
-app.use('/wopi', wopiRoutes);
+app.use('/api/wopi', wopiRoutes);
 
 // File upload setup
 const storage = multer.diskStorage({

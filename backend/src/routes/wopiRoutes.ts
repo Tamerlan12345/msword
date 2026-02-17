@@ -8,6 +8,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
 const BACKEND_URL = process.env.BACKEND_URL || 'https://dmbp1.up.railway.app';
+const COLLABORA_PUBLIC_URL = process.env.COLLABORA_PUBLIC_URL || 'http://localhost:9980';
 
 // Helper to extract user
 const getUserFromRequest = (req: any) => {
@@ -31,6 +32,31 @@ const getFilePath = async (id: string) => {
   if (!doc || !doc.versions[0]) return null;
   return { doc, filePath: path.resolve(doc.versions[0].filePath) };
 };
+
+// Generate Iframe URL
+router.get('/iframe/:id', async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const token = req.query.access_token || req.headers['authorization']?.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Verify document exists
+    const result = await getFilePath(id);
+    if (!result) return res.status(404).json({ error: 'File not found' });
+
+    const wopiSrc = `${BACKEND_URL}/api/wopi/files/${id}`;
+
+    // Construct full iframe URL
+    // WOPISrc must be encoded
+    const url = `${COLLABORA_PUBLIC_URL}/browser/0.0.0/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${token}`;
+
+    res.json({ url });
+  } catch (error) {
+    console.error('Iframe URL Error:', error);
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
 
 // CheckFileInfo
 router.get('/files/:id', async (req: any, res: any) => {

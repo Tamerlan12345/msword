@@ -8,7 +8,7 @@ interface DocumentEditorProps {
 
 export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) => {
   const token = localStorage.getItem('token');
-  const apiUrl = import.meta.env.VITE_API_URL || 'https://dmbp.up.railway.app';
+  const apiUrl = import.meta.env.VITE_API_URL || 'https://dmbp1.up.railway.app';
   const [collaboraUrl, setCollaboraUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +41,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) =>
       return <div className="p-8 text-center text-gray-500">Загрузка настроек редактора...</div>;
   }
 
-  const wopiSrc = `${apiUrl}/wopi/files/${documentId}`;
+  const wopiSrc = `${apiUrl}/api/wopi/files/${documentId}`;
   const iframeSrc = `${collaboraUrl}/browser/dist/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${encodeURIComponent(token)}`;
 
   return (
