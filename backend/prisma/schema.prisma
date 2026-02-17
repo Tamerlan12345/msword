@@ -87,6 +87,10 @@ model DocumentApprover {
 
   assignedAt DateTime @default(now())
 
+  serialNumber Int      @default(0)
+  isCurrent    Boolean  @default(false)
+  actionDate   DateTime?
+
   @@unique([documentId, userId])
 }
 

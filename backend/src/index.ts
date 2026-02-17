@@ -161,11 +161,23 @@ app.post('/api/documents', authenticateToken, upload.single('file'), async (req:
 // 4. GET DOCUMENTS
 app.get('/api/documents', authenticateToken, async (req: any, res: any) => {
   try {
-    const { authorId, status } = req.query;
+    const user = req.user;
+    let where: any = {};
 
-    const where: any = {};
-    if (authorId) where.authorId = String(authorId);
-    if (status) where.status = String(status);
+    if (user.role !== 'ADMIN') {
+        where = {
+            OR: [
+                { authorId: user.id },
+                {
+                    approvers: {
+                        some: {
+                            userId: user.id
+                        }
+                    }
+                }
+            ]
+        };
+    }
 
     const docs = await prisma.document.findMany({
       where,
@@ -501,25 +513,33 @@ app.put('/api/documents/:id/content', authenticateToken, async (req: any, res: a
 app.post('/api/documents/:id/approvers', authenticateToken, async (req: any, res: any) => {
   const { id } = req.params;
   const { userIds } = req.body; // ["uuid1", "uuid2"]
+  const user = req.user;
 
   try {
-    // Remove old pending approvers
+    const doc = await prisma.document.findUnique({ where: { id } });
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+    if (user.role !== 'ADMIN' && doc.authorId !== user.id) {
+        return res.status(403).json({ error: 'Only Author or Admin can assign approvers' });
+    }
+
+    // Clear existing approvers (start fresh)
     await prisma.documentApprover.deleteMany({
-      where: { documentId: id, status: 'PENDING' }
+      where: { documentId: id }
     });
 
-    // Add new ones
-    const promises = userIds.map((userId: string) =>
-      prisma.documentApprover.create({
-        data: {
-          documentId: id,
-          userId: userId,
-          status: 'PENDING'
-        }
-      })
-    );
-
-    await Promise.all(promises);
+    // Add new ones with sequence
+    for (let i = 0; i < userIds.length; i++) {
+        await prisma.documentApprover.create({
+            data: {
+                documentId: id,
+                userId: userIds[i],
+                status: 'PENDING',
+                serialNumber: i,
+                isCurrent: i === 0 // First one is active
+            }
+        });
+    }
 
     // Update doc status
     await prisma.document.update({
@@ -534,45 +554,55 @@ app.post('/api/documents/:id/approvers', authenticateToken, async (req: any, res
   }
 });
 
-// 8. APPROVE/REJECT
-app.put('/api/documents/:id/approve', authenticateToken, async (req: any, res: any) => {
+// 8. FORWARD (Pass the baton)
+app.put('/api/documents/:id/forward', authenticateToken, async (req: any, res: any) => {
   const { id } = req.params;
-  const { status, comment } = req.body; // APPROVED or REJECTED
+  const { comment } = req.body;
   const userId = req.user.id;
 
   try {
-    // Update approver status
-    await prisma.documentApprover.update({
-      where: { documentId_userId: { documentId: id, userId } },
-      data: { status, comment }
+    const currentApprover = await prisma.documentApprover.findUnique({
+      where: { documentId_userId: { documentId: id, userId } }
     });
 
-    // Check if all approved
-    if (status === 'APPROVED') {
-      const allApprovers = await prisma.documentApprover.findMany({
-        where: { documentId: id }
-      });
-
-      const allApproved = allApprovers.every(a => a.status === 'APPROVED');
-
-      if (allApproved) {
-        await prisma.document.update({
-          where: { id },
-          data: { status: 'APPROVED' }
-        });
-      }
-    } else if (status === 'REJECTED') {
-      // If one rejects, document is rejected
-      await prisma.document.update({
-        where: { id },
-        data: { status: 'REJECTED' }
-      });
+    if (!currentApprover || !currentApprover.isCurrent) {
+        return res.status(403).json({ error: 'Не ваша очередь' });
     }
 
-    res.json({ message: 'Голос учтен' });
+    // Mark current as done
+    await prisma.documentApprover.update({
+      where: { id: currentApprover.id },
+      data: {
+          isCurrent: false,
+          status: 'APPROVED',
+          comment: comment || '',
+          actionDate: new Date()
+      }
+    });
+
+    // Find next
+    const nextApprover = await prisma.documentApprover.findFirst({
+        where: { documentId: id, serialNumber: currentApprover.serialNumber + 1 }
+    });
+
+    if (nextApprover) {
+        // Activate next
+        await prisma.documentApprover.update({
+            where: { id: nextApprover.id },
+            data: { isCurrent: true }
+        });
+    } else {
+        // End of chain -> REVIEW_REQUIRED
+        await prisma.document.update({
+            where: { id },
+            data: { status: 'REVIEW_REQUIRED' }
+        });
+    }
+
+    res.json({ message: 'Передано дальше' });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Ошибка голосования' });
+    res.status(500).json({ error: 'Ошибка' });
   }
 });
 

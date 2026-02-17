@@ -7,8 +7,7 @@ import { clsx } from 'clsx';
 import axios from 'axios';
 
 const TABS = [
-  { id: 'my-tasks', label: 'Мои задачи' },
-  { id: 'in-progress', label: 'В работе' },
+  { id: 'my-tasks', label: 'Мои документы' },
   { id: 'on-approval', label: 'На согласовании' },
   { id: 'archive', label: 'Архив' },
 ];
@@ -29,11 +28,6 @@ export const Dashboard = () => {
 
   const fetchDocuments = async () => {
     try {
-      // Fetch all docs for now and filter on frontend, or rely on future backend filtering
-      // Since we updated backend to support filtering, we could use it, but logic is complex:
-      // "My tasks" = (authorId == me AND (status == DRAFT OR REJECTED))
-      // Backend filter is simple AND. Complex OR logic is easier on Frontend for MVP unless we add complex query params.
-      // So I will fetch all and filter here as permitted by TS ("or filter array on client").
       const res = await axios.get('/api/documents');
       setDocuments(res.data);
     } catch (error) {
@@ -49,32 +43,20 @@ export const Dashboard = () => {
     if (!currentUser) return false;
 
     const isAuthor = doc.authorId === currentUser.id;
-    // const isAdmin = currentUser.role === 'ADMIN'; // Not strictly needed for filtering if we follow TS logic exactly
+    const isApprover = doc.approvers?.some((a: any) => a.userId === currentUser.id);
 
     switch (activeTab) {
       case 'my-tasks':
-        // authorId == Current User AND (status == DRAFT OR REJECTED)
-        return isAuthor && (doc.status === 'DRAFT' || doc.status === 'REJECTED');
+        // "Мои документы" (Author): Все, где authorId == me.
+        return isAuthor;
 
       case 'on-approval':
-        // status == ON_APPROVAL
-        // TS says: "Documents that left the author and wait for Admin decision."
-        // Usually Admin sees these. If I am author, do I see them here?
-        // TS description: "Documents that left the author..."
-        // If I am just an Author, maybe I shouldn't see *all* on-approval docs?
-        // But TS didn't specify user restriction here, just "status == ON_APPROVAL".
-        // However, usually "On Approval" tab is for Approvers (Admins).
-        // Let's assume global visibility or filtered by role logic if implied.
-        // For MVP, sticking to TS: status == ON_APPROVAL.
-        return doc.status === 'ON_APPROVAL';
-
-      case 'in-progress':
-        // authorId == Current User AND status == ON_APPROVAL
-        return isAuthor && doc.status === 'ON_APPROVAL';
+        // "На согласовании" (Входящие): Документы, где user находится в списке approvers И статус ON_APPROVAL.
+        return isApprover && doc.status === 'ON_APPROVAL';
 
       case 'archive':
-        // status == APPROVED
-        return doc.status === 'APPROVED';
+        // "Архив": Документы со статусом APPROVED или REJECTED.
+        return doc.status === 'APPROVED' || doc.status === 'REJECTED';
 
       default:
         return true;
@@ -131,11 +113,13 @@ export const Dashboard = () => {
                   doc.status === 'DRAFT' ? "bg-gray-100 text-gray-600" :
                   doc.status === 'ON_APPROVAL' ? "bg-blue-50 text-blue-700" :
                   doc.status === 'APPROVED' ? "bg-green-50 text-green-700" :
+                  doc.status === 'REVIEW_REQUIRED' ? "bg-yellow-50 text-yellow-700" :
                   "bg-red-50 text-red-700"
                 )}>
                   {doc.status === 'DRAFT' ? 'Черновик' :
                    doc.status === 'ON_APPROVAL' ? 'На согласовании' :
-                   doc.status === 'APPROVED' ? 'Согласован' : 'Отклонен'}
+                   doc.status === 'APPROVED' ? 'Согласован' :
+                   doc.status === 'REVIEW_REQUIRED' ? 'Требует доработки' : 'Отклонен'}
                 </span>
               </div>
 

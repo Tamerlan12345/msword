@@ -191,14 +191,22 @@ export const checkFileInfo = async (req: Request, res: Response) => {
                 readOnly = true;
             }
         } else if (doc.status === 'ON_APPROVAL') {
-            // On Approval: Approver can review
-            if (isApprover) {
+            // On Approval: Current Approver can review
+            if (isApprover && approver.isCurrent) {
                 userCanWrite = true;
                 userCanReview = true;
             } else {
                 // Author and others: Read Only
                 userCanWrite = false;
                 userCanReview = false;
+                readOnly = true;
+            }
+        } else if (doc.status === 'REVIEW_REQUIRED') {
+            // Author can finalize
+            if (isAuthor) {
+                userCanWrite = true;
+                userCanReview = true;
+            } else {
                 readOnly = true;
             }
         } else {
