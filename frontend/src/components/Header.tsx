@@ -45,7 +45,11 @@ export const Header = () => {
           </button>
         )}
 
-        <div className="flex items-center gap-2 p-1 pr-2">
+        <div
+          className="flex items-center gap-2 p-1 pr-2 cursor-pointer hover:bg-gray-100 rounded transition-colors"
+          onClick={() => navigate('/profile')}
+          title="Профиль"
+        >
           <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-medium text-sm">
             {user.name.substring(0, 2).toUpperCase()}
           </div>

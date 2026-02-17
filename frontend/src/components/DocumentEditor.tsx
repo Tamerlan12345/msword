@@ -41,7 +41,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) =>
   }
 
   return (
-    <div className="flex flex-col h-[800px] w-full border rounded-lg overflow-hidden bg-white shadow-sm relative">
+    <div className="flex flex-col h-full w-full border-none overflow-hidden bg-white shadow-sm relative">
       <iframe
         src={iframeSrc}
         width="100%"
