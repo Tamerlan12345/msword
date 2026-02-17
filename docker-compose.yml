@@ -36,6 +36,9 @@ services:
       JWT_SECRET: secret123
       PORT: 3000
       BACKEND_URL: https://dmbp.up.railway.app
+      PUBLIC_URL: https://dmbp.up.railway.app
+      INTERNAL_WOPI_URL: http://backend:3000
+      COLLABORA_PUBLIC_URL: https://collabora-dmbp.up.railway.app
       # Optional: keep for local dev or internal references if code uses them
       WOPI_HOST_URL: http://backend:3000
       COLLABORA_URL: http://collabora:9980

@@ -18,6 +18,7 @@ model User {
 
   // Relations
   documents Document[] @relation("CreatedDocument")
+  lastEditedDocuments Document[] @relation("LastEditedDocument")
   approvals DocumentApprover[]
   comments  Comment[]
   wopiTokens WopiToken[]
@@ -36,6 +37,9 @@ model Document {
 
   authorId  String
   author    User     @relation(fields: [authorId], references: [id], name: "CreatedDocument")
+
+  lastEditorId String?
+  lastEditor   User?   @relation(fields: [lastEditorId], references: [id], name: "LastEditedDocument")
 
   versions  DocumentVersion[]
   approvers DocumentApprover[]
