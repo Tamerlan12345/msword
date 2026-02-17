@@ -33,7 +33,7 @@ model Document {
   id        String   @id @default(uuid())
   title     String
   content   String?  @default("")
-  status    String   @default("DRAFT") // DRAFT, ON_APPROVAL, APPROVED, REJECTED, REVIEW_REQUIRED
+  status    String   @default("DRAFT") // DRAFT, ON_APPROVAL, APPROVED, REJECTED
 
   googleFileId String? // Added for Google Docs integration
 
@@ -82,11 +82,8 @@ model DocumentApprover {
   userId     String
   user       User     @relation(fields: [userId], references: [id])
 
-  status       String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  serialNumber Int      @default(0)
-  isCurrent    Boolean  @default(false)
-  actionDate   DateTime?
-  comment      String?
+  status     String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  comment    String?
 
   assignedAt DateTime @default(now())
 
