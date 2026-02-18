@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Search, FileText, LogOut, Settings } from 'lucide-react';
+import { Bell, FileText, LogOut, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const Header = () => {
@@ -21,17 +21,6 @@ export const Header = () => {
         <span className="text-lg font-bold text-gray-800">CIC DocFlow</span>
       </div>
 
-      <div className="flex-1 max-w-xl mx-8">
-        {/* Поиск пока заглушка */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Поиск документов..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-          />
-        </div>
-      </div>
 
       <div className="flex items-center gap-4">
         {/* Если админ - показываем кнопку админки */}
