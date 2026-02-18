@@ -6,7 +6,7 @@ interface DocumentEditorProps {
   isReviewMode?: boolean;
 }
 
-export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) => {
+export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId, isReviewMode }) => {
   const token = localStorage.getItem('token');
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +15,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) =>
     const fetchIframeUrl = async () => {
       try {
         // Fetch the secure URL (which includes WOPISrc and access_token=UUID)
-        const res = await axios.get(`/api/wopi/iframe/${documentId}`);
+        const res = await axios.get(`/api/wopi/iframe/${documentId}`, {
+          params: { mode: isReviewMode ? 'review' : 'edit' }
+        });
         setIframeSrc(res.data.url);
       } catch (err) {
         console.error("Failed to fetch WOPI URL", err);
@@ -26,7 +28,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ documentId }) =>
     if (documentId) {
         fetchIframeUrl();
     }
-  }, [documentId]);
+  }, [documentId, isReviewMode]);
 
   if (!token) {
       return <div className="p-8 text-center text-red-600">Нет токена доступа. Пожалуйста, войдите снова.</div>;
