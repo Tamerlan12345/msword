@@ -42,9 +42,11 @@ services:
       # Optional: keep for local dev or internal references if code uses them
       WOPI_HOST_URL: http://backend:3000
       COLLABORA_URL: http://collabora:9980
+      UPLOAD_DIR: /data_storage
     volumes:
       - ./uploads:/app/uploads
       - ./frontend/dist:/frontend/dist
+      - ./server_files:/data_storage
     depends_on: [postgres, collabora]
     networks: [app-network]
 

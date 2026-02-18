@@ -46,8 +46,8 @@ app.use('/api/wopi', wopiRoutes);
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Используем абсолютный путь, чтобы точно попасть в примонтированный volume
-    // path.join(__dirname, '../uploads') указывает на папку /app/uploads внутри Docker
-    const uploadDir = path.join(__dirname, '../uploads');
+    // Если задана переменная окружения UPLOAD_DIR - используем её
+    const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
     
     // Создаем папку, если её нет (важно при первом запуске)
     if (!fs.existsSync(uploadDir)) {
@@ -62,9 +62,9 @@ const storage = multer.diskStorage({
     // 2. Генерируем уникальный номер
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     
-    // 3. СОХРАНЯЕМ ПРАВИЛЬНО: Уникальный номер + Дефис + ПОЛНОЕ оригинальное имя
-    // Раньше тут была ошибка с path.extname, которая стирала имя файла
-    cb(null, uniqueSuffix + '-' + originalName); 
+    // 3. Sanitized filename: <Timestamp>-<RandomID>.<Extension>
+    const ext = path.extname(originalName);
+    cb(null, uniqueSuffix + ext);
   },
 });
 
