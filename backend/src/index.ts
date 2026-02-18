@@ -47,25 +47,27 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Используем абсолютный путь, чтобы точно попасть в примонтированный volume
     // path.join(__dirname, '../uploads') указывает на папку /app/uploads внутри Docker
-    const uploadDir = path.join(__dirname, '../uploads'); 
+    const uploadDir = path.join(__dirname, '../uploads');
     
+    // Создаем папку, если её нет (важно при первом запуске)
     if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    // Кодируем имя файла, чтобы избежать проблем с кириллицей
+    // 1. Исправляем кодировку (чтобы русские названия не превращались в кракозябры)
     const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    
+    // 2. Генерируем уникальный номер
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + path.extname(originalName)); // Сохраняем расширение корректно
+    
+    // 3. СОХРАНЯЕМ ПРАВИЛЬНО: Уникальный номер + Дефис + ПОЛНОЕ оригинальное имя
+    // Раньше тут была ошибка с path.extname, которая стирала имя файла
+    cb(null, uniqueSuffix + '-' + originalName); 
   },
 });
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  },
-});
+
 const upload = multer({ storage });
 
 // --- MIDDLEWARE ---
