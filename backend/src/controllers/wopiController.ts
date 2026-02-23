@@ -146,9 +146,11 @@ export const checkFileInfo = async (req: Request, res: Response) => {
         const { doc, filePath } = result;
 
         // Ensure file exists (create stub if missing)
-        if (!fs.existsSync(filePath)) {
+        try {
+            await fs.promises.access(filePath, fs.constants.F_OK);
+        } catch {
             try {
-                fs.writeFileSync(filePath, Buffer.from(''));
+                await fs.promises.writeFile(filePath, Buffer.from(''));
             } catch (e) {
                 console.error("Failed to create stub file:", e);
             }
@@ -156,7 +158,7 @@ export const checkFileInfo = async (req: Request, res: Response) => {
 
         let stats;
         try {
-            stats = fs.statSync(filePath);
+            stats = await fs.promises.stat(filePath);
         } catch (e) {
             return res.status(404).json({ error: 'File on disk not found' });
         }

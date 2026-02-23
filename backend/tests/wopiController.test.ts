@@ -44,6 +44,14 @@ jest.mock('fs', () => ({
     statSync: jest.fn(),
     writeFileSync: jest.fn(),
     existsSync: jest.fn(),
+    promises: {
+        access: jest.fn(),
+        writeFile: jest.fn(),
+        stat: jest.fn()
+    },
+    constants: {
+        F_OK: 0
+    }
 }));
 
 jest.mock('path', () => {
@@ -71,8 +79,11 @@ describe('WOPI Controller', () => {
             headers: {},
         };
         jest.clearAllMocks();
-        // Default existsSync to true for happy paths
+        // Default existsSync to true for happy paths (legacy/other endpoints)
         (fs.existsSync as jest.Mock).mockReturnValue(true);
+        // Default async mocks for checkFileInfo
+        (fs.promises.access as jest.Mock).mockResolvedValue(undefined); // File exists
+        (fs.promises.stat as jest.Mock).mockResolvedValue({ size: 100 });
     });
 
     test('validateWopiToken checks Authorization header', async () => {
@@ -139,10 +150,9 @@ describe('WOPI Controller', () => {
         });
 
         // File does not exist on disk
-        (fs.existsSync as jest.Mock).mockReturnValue(false); // Trigger write attempt
-        (fs.statSync as jest.Mock).mockImplementation(() => {
-            throw new Error('File not found');
-        });
+        (fs.promises.access as jest.Mock).mockRejectedValue(new Error('No entry'));
+        (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
+        (fs.promises.stat as jest.Mock).mockRejectedValue(new Error('File not found'));
 
         await checkFileInfo(req as Request, res as Response);
 
@@ -177,7 +187,7 @@ describe('WOPI Controller', () => {
             updatedAt: new Date(),
         });
 
-        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
+        // Mocks setup in beforeEach are sufficient
 
         await checkFileInfo(req as Request, res as Response);
 
@@ -206,8 +216,6 @@ describe('WOPI Controller', () => {
             updatedAt: new Date(),
         });
 
-        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
-
         await checkFileInfo(req as Request, res as Response);
 
         expect(json).toHaveBeenCalledWith(expect.objectContaining({
@@ -235,8 +243,6 @@ describe('WOPI Controller', () => {
             updatedAt: new Date(),
         });
 
-        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
-
         await checkFileInfo(req as Request, res as Response);
 
         expect(json).toHaveBeenCalledWith(expect.objectContaining({
@@ -263,8 +269,6 @@ describe('WOPI Controller', () => {
             approvers: [],
             updatedAt: new Date(),
         });
-
-        (fs.statSync as jest.Mock).mockReturnValue({ size: 100 });
 
         await checkFileInfo(req as Request, res as Response);
 
