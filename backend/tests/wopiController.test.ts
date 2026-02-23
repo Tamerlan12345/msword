@@ -43,6 +43,7 @@ const mPrisma = (PrismaClient as any).mockInstance;
 jest.mock('fs', () => ({
     statSync: jest.fn(),
     writeFileSync: jest.fn(),
+    existsSync: jest.fn(),
 }));
 
 jest.mock('path', () => {
@@ -70,6 +71,8 @@ describe('WOPI Controller', () => {
             headers: {},
         };
         jest.clearAllMocks();
+        // Default existsSync to true for happy paths
+        (fs.existsSync as jest.Mock).mockReturnValue(true);
     });
 
     test('validateWopiToken checks Authorization header', async () => {
@@ -87,6 +90,75 @@ describe('WOPI Controller', () => {
         expect(token).toBeTruthy();
         expect(token?.token).toBe('token1');
     });
+
+    test('checkFileInfo returns 401 when token is invalid', async () => {
+        req.query = { access_token: 'invalid_token' };
+        mPrisma.wopiToken.findUnique.mockResolvedValue(null); // Token not found
+
+        await checkFileInfo(req as Request, res as Response);
+
+        expect(status).toHaveBeenCalledWith(401);
+        expect(json).toHaveBeenCalledWith({ error: 'Unauthorized WOPI host' });
+    });
+
+    test('checkFileInfo returns 404 when document is not found', async () => {
+        // Valid token
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'user1' },
+            documentId: 'doc1'
+        });
+
+        // Document not found
+        mPrisma.document.findUnique.mockResolvedValue(null);
+
+        await checkFileInfo(req as Request, res as Response);
+
+        expect(status).toHaveBeenCalledWith(404);
+        expect(json).toHaveBeenCalledWith({ error: 'File not found' });
+    });
+
+    test('checkFileInfo returns 404 when file on disk is not found', async () => {
+         // Valid token
+         mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'user1' },
+            documentId: 'doc1'
+        });
+
+        // Document found
+        mPrisma.document.findUnique.mockResolvedValue({
+            id: 'doc1',
+            authorId: 'user1',
+            status: 'DRAFT',
+            versions: [{ version: 1, filePath: '/tmp/file.docx' }],
+            approvers: [],
+            updatedAt: new Date(),
+        });
+
+        // File does not exist on disk
+        (fs.existsSync as jest.Mock).mockReturnValue(false); // Trigger write attempt
+        (fs.statSync as jest.Mock).mockImplementation(() => {
+            throw new Error('File not found');
+        });
+
+        await checkFileInfo(req as Request, res as Response);
+
+        expect(status).toHaveBeenCalledWith(404);
+        expect(json).toHaveBeenCalledWith({ error: 'File on disk not found' });
+    });
+
+     test('checkFileInfo returns 500 on server error', async () => {
+         // Simulate error in validateWopiToken or DB access
+         mPrisma.wopiToken.findUnique.mockRejectedValue(new Error('DB Error'));
+
+         await checkFileInfo(req as Request, res as Response);
+
+         expect(status).toHaveBeenCalledWith(500);
+         expect(json).toHaveBeenCalledWith({ error: 'Server Error' });
+     });
 
     test('checkFileInfo permissions - Admin has full access', async () => {
         mPrisma.wopiToken.findUnique.mockResolvedValue({
@@ -159,7 +231,7 @@ describe('WOPI Controller', () => {
             authorId: 'author1',
             status: 'ON_APPROVAL',
             versions: [{ version: 1, filePath: '/tmp/file.docx' }],
-            approvers: [{ userId: 'approver1' }],
+            approvers: [{ userId: 'approver1', isCurrent: true }],
             updatedAt: new Date(),
         });
 
