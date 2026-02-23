@@ -43,6 +43,7 @@ const mPrisma = (PrismaClient as any).mockInstance;
 jest.mock('fs', () => ({
     statSync: jest.fn(),
     writeFileSync: jest.fn(),
+    existsSync: jest.fn().mockReturnValue(true),
 }));
 
 jest.mock('path', () => {
@@ -159,7 +160,7 @@ describe('WOPI Controller', () => {
             authorId: 'author1',
             status: 'ON_APPROVAL',
             versions: [{ version: 1, filePath: '/tmp/file.docx' }],
-            approvers: [{ userId: 'approver1' }],
+            approvers: [{ userId: 'approver1', isCurrent: true }],
             updatedAt: new Date(),
         });
 
@@ -251,5 +252,83 @@ describe('WOPI Controller', () => {
             }
         });
         expect(json).toHaveBeenCalledWith({ ItemVersion: 'v2' });
+    });
+
+    test('putFile - Unauthorized Access', async () => {
+        // validateWopiToken returns null
+        mPrisma.wopiToken.findUnique.mockResolvedValue(null);
+
+        await putFile(req as Request, res as Response);
+
+        expect(status).toHaveBeenCalledWith(401);
+        expect(json).toHaveBeenCalledWith({ error: 'Unauthorized WOPI host' });
+    });
+
+    test('putFile - Invalid Request Body', async () => {
+        // Valid token
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'user1' },
+            documentId: 'doc1'
+        });
+
+        // Invalid body
+        req.body = { some: 'json' };
+
+        await putFile(req as Request, res as Response);
+
+        expect(status).toHaveBeenCalledWith(400);
+        expect(json).toHaveBeenCalledWith({ error: 'Invalid body or not binary' });
+    });
+
+    test('putFile - File Not Found', async () => {
+        // Valid token
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'user1' },
+            documentId: 'doc1'
+        });
+
+        // Valid buffer body
+        req.body = Buffer.from('content');
+
+        // Document not found
+        mPrisma.document.findUnique.mockResolvedValue(null);
+
+        await putFile(req as Request, res as Response);
+
+        expect(status).toHaveBeenCalledWith(404);
+        expect(json).toHaveBeenCalledWith({ error: 'File not found' });
+    });
+
+    test('putFile - Database Error', async () => {
+        // Valid token
+        mPrisma.wopiToken.findUnique.mockResolvedValue({
+            token: 'token1',
+            expiresAt: new Date(Date.now() + 10000),
+            user: { id: 'user1' },
+            documentId: 'doc1'
+        });
+
+        // Valid buffer body
+        req.body = Buffer.from('content');
+
+        // Document found
+        mPrisma.document.findUnique.mockResolvedValue({
+            id: 'doc1',
+            versions: [{ version: 1, filePath: '/tmp/file_v1.docx' }]
+        });
+
+        // Create version throws error
+        mPrisma.documentVersion.create.mockRejectedValue(new Error('DB Error'));
+
+        (fs.writeFileSync as jest.Mock).mockReturnValue(undefined);
+
+        await putFile(req as Request, res as Response);
+
+        expect(status).toHaveBeenCalledWith(500);
+        expect(json).toHaveBeenCalledWith({ error: 'Save failed' });
     });
 });
