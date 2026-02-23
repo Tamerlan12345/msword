@@ -43,6 +43,7 @@ const mPrisma = (PrismaClient as any).mockInstance;
 jest.mock('fs', () => ({
     statSync: jest.fn(),
     writeFileSync: jest.fn(),
+    existsSync: jest.fn(() => true),
 }));
 
 jest.mock('path', () => {
@@ -159,7 +160,7 @@ describe('WOPI Controller', () => {
             authorId: 'author1',
             status: 'ON_APPROVAL',
             versions: [{ version: 1, filePath: '/tmp/file.docx' }],
-            approvers: [{ userId: 'approver1' }],
+            approvers: [{ userId: 'approver1', isCurrent: true }],
             updatedAt: new Date(),
         });
 

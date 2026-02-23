@@ -543,17 +543,15 @@ app.post('/api/documents/:id/approvers', authenticateToken, async (req: any, res
     });
 
     // Add new ones with sequence
-    for (let i = 0; i < userIds.length; i++) {
-        await prisma.documentApprover.create({
-            data: {
-                documentId: id,
-                userId: userIds[i],
-                status: 'PENDING',
-                serialNumber: i,
-                isCurrent: i === 0 // First one is active
-            }
-        });
-    }
+    await prisma.documentApprover.createMany({
+        data: userIds.map((userId: string, i: number) => ({
+            documentId: id,
+            userId: userId,
+            status: 'PENDING',
+            serialNumber: i,
+            isCurrent: i === 0 // First one is active
+        }))
+    });
 
     // Update doc status
     await prisma.document.update({
