@@ -430,9 +430,6 @@ app.post('/api/onlyoffice/callback', async (req: any, res: any) => {
          console.error("Callback Token Invalid:", err);
          return res.json({ error: 1, message: "Invalid token" });
       }
-    } else {
-        // Option: Enforce token presence
-        // return res.json({ error: 1, message: "Token missing" });
     }
 
     const { status, url, key } = payload;
