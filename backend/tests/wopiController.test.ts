@@ -35,7 +35,7 @@ jest.mock('@prisma/client', () => {
 
 // Import after mock
 import { PrismaClient } from '@prisma/client';
-import { checkFileInfo, validateWopiToken, putFile } from '../src/controllers/wopiController';
+import { checkFileInfo, validateWopiToken, putFile, cleanupTokens } from '../src/controllers/wopiController';
 
 // Get the reference to the mock instance
 const mPrisma = (PrismaClient as any).mockInstance;
@@ -43,6 +43,7 @@ const mPrisma = (PrismaClient as any).mockInstance;
 jest.mock('fs', () => ({
     statSync: jest.fn(),
     writeFileSync: jest.fn(),
+    existsSync: jest.fn().mockReturnValue(true),
 }));
 
 jest.mock('path', () => {
@@ -159,7 +160,7 @@ describe('WOPI Controller', () => {
             authorId: 'author1',
             status: 'ON_APPROVAL',
             versions: [{ version: 1, filePath: '/tmp/file.docx' }],
-            approvers: [{ userId: 'approver1' }],
+            approvers: [{ userId: 'approver1', isCurrent: true }],
             updatedAt: new Date(),
         });
 
@@ -253,3 +254,53 @@ describe('WOPI Controller', () => {
         expect(json).toHaveBeenCalledWith({ ItemVersion: 'v2' });
     });
 });
+
+    describe('cleanupTokens', () => {
+        let consoleLogSpy: jest.SpyInstance;
+        let consoleErrorSpy: jest.SpyInstance;
+
+        beforeEach(() => {
+            consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+            consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        });
+
+        afterEach(() => {
+            consoleLogSpy.mockRestore();
+            consoleErrorSpy.mockRestore();
+        });
+
+        test('cleanupTokens calls deleteMany and logs if tokens are deleted', async () => {
+            mPrisma.wopiToken.deleteMany.mockResolvedValue({ count: 5 });
+
+            await cleanupTokens();
+
+            expect(mPrisma.wopiToken.deleteMany).toHaveBeenCalledWith({
+                where: {
+                    expiresAt: { lt: expect.any(Date) }
+                }
+            });
+            expect(consoleLogSpy).toHaveBeenCalledWith('Cleaned up 5 expired WOPI tokens.');
+        });
+
+        test('cleanupTokens does not log if no tokens are deleted', async () => {
+            mPrisma.wopiToken.deleteMany.mockResolvedValue({ count: 0 });
+
+            await cleanupTokens();
+
+            expect(mPrisma.wopiToken.deleteMany).toHaveBeenCalledWith({
+                where: {
+                    expiresAt: { lt: expect.any(Date) }
+                }
+            });
+            expect(consoleLogSpy).not.toHaveBeenCalled();
+        });
+
+        test('cleanupTokens handles and logs errors', async () => {
+            const error = new Error('Database error');
+            mPrisma.wopiToken.deleteMany.mockRejectedValue(error);
+
+            await cleanupTokens();
+
+            expect(consoleErrorSpy).toHaveBeenCalledWith('Cleanup tokens error:', error);
+        });
+    });
