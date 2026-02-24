@@ -300,7 +300,7 @@ export const putFile = async (req: Request, res: Response) => {
         const newFilePath = path.join(dir, newFileName);
 
         // Write file
-        fs.writeFileSync(newFilePath, req.body);
+        await fs.promises.writeFile(newFilePath, req.body);
 
         // Create DB entry
         await prisma.documentVersion.create({
