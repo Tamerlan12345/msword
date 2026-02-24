@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Header } from '../components/Header';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { ArrowLeft, Save, CheckCircle, XCircle, UserPlus, ChevronLeft, ChevronRight, Menu, ArrowUp, ArrowDown, Trash, Send, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, UserPlus, ChevronLeft, ChevronRight, Menu, ArrowUp, ArrowDown, Trash, Send, RotateCcw } from 'lucide-react';
 import { DocumentEditor } from '../components/DocumentEditor';
 import { clsx } from 'clsx';
 
