@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import axios from 'axios';
 import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
@@ -60,7 +61,7 @@ const storage = multer.diskStorage({
     const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     
     // 2. Генерируем уникальный номер
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(8).toString('hex');
     
     // 3. Sanitized filename: <Timestamp>-<RandomID>.<Extension>
     const ext = path.extname(originalName);
