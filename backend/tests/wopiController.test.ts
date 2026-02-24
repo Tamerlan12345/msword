@@ -307,11 +307,11 @@ describe('WOPI Controller', () => {
         mPrisma.documentVersion.create.mockResolvedValue({ id: 'ver2' });
         mPrisma.document.update.mockResolvedValue({ id: 'doc1' });
 
-        (fs.writeFileSync as jest.Mock).mockReturnValue(undefined);
+        (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
 
         await putFile(req as Request, res as Response);
 
-        expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/file_v2.docx', fileContent);
+        expect(fs.promises.writeFile).toHaveBeenCalledWith('/tmp/file_v2.docx', fileContent);
         expect(mPrisma.documentVersion.create).toHaveBeenCalledWith({
             data: {
                 documentId: 'doc1',
