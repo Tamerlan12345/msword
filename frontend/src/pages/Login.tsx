@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { FileText } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 
 export const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
     try {
       // Отправляем запрос на вход
       const res = await axios.post('/api/auth/login', { email, password });
@@ -25,6 +29,8 @@ export const Login = () => {
       navigate('/'); // Переход на главную
     } catch (err) {
       setError('Ошибка входа. Проверьте логин и пароль.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -38,7 +44,15 @@ export const Login = () => {
 
         <h2 className="text-2xl font-bold mb-6 text-center">Вход в систему</h2>
 
-        {error && <div className="bg-red-50 text-red-500 p-3 rounded mb-4 text-sm">{error}</div>}
+        {error && (
+          <div
+            className="bg-red-50 text-red-500 p-3 rounded mb-4 text-sm"
+            role="alert"
+            aria-live="polite"
+          >
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
@@ -49,6 +63,7 @@ export const Login = () => {
               onChange={(e) => setEmail(e.target.value)}
               className="mt-1 w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary"
               placeholder="veronik7@admin.com"
+              required
             />
           </div>
           <div>
@@ -59,10 +74,23 @@ export const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary"
               placeholder="••••••••"
+              required
             />
           </div>
-          <button type="submit" className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-light transition">
-            Войти
+          <button
+            type="submit"
+            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-light transition flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            disabled={isLoading}
+            aria-busy={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Вход...</span>
+              </>
+            ) : (
+              'Войти'
+            )}
           </button>
         </form>
       </div>
