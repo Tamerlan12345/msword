@@ -5,6 +5,7 @@ import { Login } from './pages/Login';
 import { Admin } from './pages/Admin';
 import { DocumentDetail } from './pages/DocumentDetail';
 import { Profile } from './pages/Profile';
+import { Metrics } from './pages/Metrics';
 import axios from 'axios';
 
 // Компонент защиты роутов
@@ -34,6 +35,7 @@ const AppContent = () => {
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/documents/:id" element={<ProtectedRoute><DocumentDetail /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+      <Route path="/metrics" element={<ProtectedRoute><Metrics /></ProtectedRoute>} />
     </Routes>
   );
 };
