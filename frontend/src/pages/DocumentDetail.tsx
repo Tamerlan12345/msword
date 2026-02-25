@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Header } from '../components/Header';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { ArrowLeft, Save, CheckCircle, UserPlus, ChevronLeft, ChevronRight, Menu, ArrowUp, ArrowDown, Trash, Send, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, UserPlus, ChevronLeft, ChevronRight, Menu, ArrowUp, ArrowDown, Trash, Send, RotateCcw, XCircle } from 'lucide-react';
 import { DocumentEditor } from '../components/DocumentEditor';
 import { clsx } from 'clsx';
 
@@ -106,6 +106,18 @@ export const DocumentDetail = () => {
           fetchDoc();
       } catch (e) {
           alert('Ошибка передачи');
+      }
+  };
+
+  const handleReject = async () => {
+      try {
+          if (!comment) return alert('Пожалуйста, укажите причину отклонения в комментарии');
+          await axios.put(`/api/documents/${id}/reject`, { comment });
+          alert('Документ отклонен');
+          setComment('');
+          fetchDoc();
+      } catch (e) {
+          alert('Ошибка отклонения');
       }
   };
 
@@ -357,12 +369,21 @@ export const DocumentDetail = () => {
                                 value={comment}
                                 onChange={(e) => setComment(e.target.value)}
                             />
-                            <button
-                                onClick={handleForward}
-                                className="w-full bg-blue-600 text-white py-2 rounded flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors"
-                            >
-                                <Send className="w-4 h-4" /> Передать дальше
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleForward}
+                                    className="flex-1 bg-blue-600 text-white py-2 rounded flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors"
+                                >
+                                    <Send className="w-4 h-4" /> Передать дальше
+                                </button>
+                                <button
+                                    onClick={handleReject}
+                                    className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded flex justify-center items-center gap-2 hover:bg-red-100 transition-colors"
+                                    title="Отклонить"
+                                >
+                                    <XCircle className="w-4 h-4" /> Отклонить
+                                </button>
+                            </div>
                         </div>
                     )}
 

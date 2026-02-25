@@ -99,3 +99,41 @@ export const updateDocument = async (req: any, res: Response) => {
         res.status(500).json({error: "Update failed"});
     }
 };
+
+export const rejectDocument = async (req: any, res: Response) => {
+  const { id } = req.params;
+  const { comment } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const currentApprover = await prisma.documentApprover.findUnique({
+      where: { documentId_userId: { documentId: id, userId } }
+    });
+
+    if (!currentApprover || !currentApprover.isCurrent) {
+        return res.status(403).json({ error: 'Не ваша очередь или вы не являетесь согласующим' });
+    }
+
+    // Mark current as REJECTED
+    await prisma.documentApprover.update({
+      where: { id: currentApprover.id },
+      data: {
+          isCurrent: false,
+          status: 'REJECTED',
+          comment: comment || '',
+          actionDate: new Date()
+      }
+    });
+
+    // Mark document as REJECTED
+    const updatedDoc = await prisma.document.update({
+        where: { id },
+        data: { status: 'REJECTED' }
+    });
+
+    res.json(updatedDoc);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Ошибка отклонения документа' });
+  }
+};
