@@ -87,7 +87,7 @@ export const Login = () => {
           </div>
           <button
             type="submit"
-            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-light transition-colors flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-light transition-all duration-200 active:scale-95 motion-reduce:transform-none flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
             disabled={isLoading}
             aria-busy={isLoading}
           >

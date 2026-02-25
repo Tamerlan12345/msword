@@ -31,7 +31,7 @@ export const Header = () => {
           <>
             <button
               onClick={() => navigate('/metrics')}
-              className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full focus-visible:ring-2 focus-visible:ring-primary outline-none transition-colors"
+              className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full focus-visible:ring-2 focus-visible:ring-primary outline-none transition-all duration-200 active:scale-90 motion-reduce:transform-none"
               title="Метрики"
               aria-label="Перейти к метрикам"
             >
@@ -39,7 +39,7 @@ export const Header = () => {
             </button>
             <button
               onClick={() => navigate('/admin')}
-              className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full focus-visible:ring-2 focus-visible:ring-primary outline-none transition-colors"
+              className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full focus-visible:ring-2 focus-visible:ring-primary outline-none transition-all duration-200 active:scale-90 motion-reduce:transform-none"
               title="Админ панель"
               aria-label="Перейти в панель администратора"
             >
@@ -62,7 +62,7 @@ export const Header = () => {
 
         <button
           onClick={handleLogout}
-          className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-red-500 outline-none"
+          className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-all duration-200 active:scale-90 motion-reduce:transform-none focus-visible:ring-2 focus-visible:ring-red-500 outline-none"
           title="Выйти"
           aria-label="Выйти из системы"
         >

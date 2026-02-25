@@ -159,14 +159,14 @@ export const NewDocumentModal = ({ onClose, onSuccess }: NewDocumentModalProps) 
         <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:py-4 flex justify-end gap-3 border-t border-gray-200">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-md font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300"
+            className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-md font-medium text-sm transition-all duration-200 active:scale-95 motion-reduce:transform-none focus:outline-none focus:ring-2 focus:ring-gray-300"
           >
             Отмена
           </button>
           <button
             onClick={handleSubmit}
             disabled={!file || !title || uploading}
-            className="px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-md font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-primary/50"
+            className="px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-md font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 active:scale-95 motion-reduce:transform-none shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             {uploading ? 'Загрузка...' : 'Далее'}
           </button>
