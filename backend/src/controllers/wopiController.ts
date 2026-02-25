@@ -88,23 +88,21 @@ export const canUserWrite = (doc: any, user: any): boolean => {
     // Final statuses: Read Only (Overrides Admin)
     if (doc.status === 'APPROVED' || doc.status === 'REJECTED') return false;
 
-    // Admin: Full access
-    if (user.role === 'ADMIN') return true;
+    // Strict Permissions: No blanket Admin override.
+    // Logic must follow the specific role in the specific state.
 
-    const isAuthor = doc.authorId === user.id;
-    const approver = doc.approvers?.find((a: any) => a.userId === user.id);
-    const isApprover = !!approver;
-
-    if (doc.status === 'DRAFT') {
-        return isAuthor;
+    // 1. DRAFT / REVIEW_REQUIRED -> Only Author
+    if (doc.status === 'DRAFT' || doc.status === 'REVIEW_REQUIRED') {
+        return doc.authorId === user.id;
     }
+
+    // 2. ON_APPROVAL -> Only Current Approver
     if (doc.status === 'ON_APPROVAL') {
-        return isApprover && approver.isCurrent;
-    }
-    if (doc.status === 'REVIEW_REQUIRED') {
-        return isAuthor;
+         // Use .some() to find the specific active approver entry
+         return doc.approvers?.some((a: any) => a.userId === user.id && a.isCurrent);
     }
 
+    // Default to false for any other state
     return false;
 };
 

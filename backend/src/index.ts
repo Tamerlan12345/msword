@@ -13,7 +13,7 @@ import axios from 'axios';
 import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
-import { cleanupTokens } from './controllers/wopiController';
+import { cleanupTokens, canUserWrite } from './controllers/wopiController';
 import { getDocuments, updateDocument, rejectDocument } from './controllers/documentController';
 
 dotenv.config();
@@ -484,11 +484,22 @@ app.put('/api/documents/:id/content', authenticateToken, async (req: any, res: a
   const { content } = req.body; // JSON string
 
   try {
-    const doc = await prisma.document.update({
+    const doc = await prisma.document.findUnique({
+        where: { id },
+        include: { approvers: true }
+    });
+
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+    if (!canUserWrite(doc, req.user)) {
+        return res.status(403).json({ error: 'Read Only: Permission denied' });
+    }
+
+    const updatedDoc = await prisma.document.update({
       where: { id },
       data: { content }
     });
-    res.json(doc);
+    res.json(updatedDoc);
   } catch (error) {
     res.status(500).json({ error: 'Ошибка сохранения' });
   }
