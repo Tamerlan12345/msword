@@ -83,6 +83,31 @@ export const cleanupTokens = async () => {
     }
 };
 
+// Helper: Check Write Permission
+export const canUserWrite = (doc: any, user: any): boolean => {
+    // Final statuses: Read Only (Overrides Admin)
+    if (doc.status === 'APPROVED' || doc.status === 'REJECTED') return false;
+
+    // Admin: Full access
+    if (user.role === 'ADMIN') return true;
+
+    const isAuthor = doc.authorId === user.id;
+    const approver = doc.approvers?.find((a: any) => a.userId === user.id);
+    const isApprover = !!approver;
+
+    if (doc.status === 'DRAFT') {
+        return isAuthor;
+    }
+    if (doc.status === 'ON_APPROVAL') {
+        return isApprover && approver.isCurrent;
+    }
+    if (doc.status === 'REVIEW_REQUIRED') {
+        return isAuthor;
+    }
+
+    return false;
+};
+
 // Endpoint: Get Iframe URL
 export const getIframeUrl = async (req: Request, res: Response) => {
   try {
@@ -164,58 +189,23 @@ export const checkFileInfo = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'File on disk not found' });
         }
 
-        const isAuthor = doc.authorId === user.id;
-        // Check if user is approver
-        const approver = doc.approvers.find((a: any) => a.userId === user.id);
-        const isApprover = !!approver;
-        const isAdmin = user.role === 'ADMIN';
+        // Use unified permission logic
+        const userCanWrite = canUserWrite(doc, user);
 
-        let userCanWrite = false;
-        let userCanReview = false;
-        let readOnly = false;
+        // For Reviewing: currently coupled with Write permission in ON_APPROVAL
+        // or Admin/Author in specific states.
+        // We can simplify: if you can write, you can likely review/edit.
+        // But let's keep the nuance: DRAFT = Author Edit (No Review mode usually, but Edit is superset)
+        // ON_APPROVAL = Review Mode for Approver.
 
-        // Permissions Matrix Logic
-        // Status: APPROVED, REJECTED -> Archive (Read Only)
-        if (doc.status === 'APPROVED' || doc.status === 'REJECTED') {
-            // Final status: Read Only for everyone
-            userCanWrite = false;
-            userCanReview = false;
-            readOnly = true;
-        } else if (isAdmin) {
-            // Admin: Full access in active statuses
-            userCanWrite = true;
-            userCanReview = true;
-        } else if (doc.status === 'DRAFT') {
-            // Draft: Author can edit
-            if (isAuthor) {
-                userCanWrite = true;
-                userCanReview = false;
-            } else {
-                readOnly = true;
-            }
-        } else if (doc.status === 'ON_APPROVAL') {
-            // On Approval: Current Approver can review
-            if (isApprover && approver.isCurrent) {
-                userCanWrite = true;
-                userCanReview = true;
-            } else {
-                // Author and others: Read Only
-                userCanWrite = false;
-                userCanReview = false;
-                readOnly = true;
-            }
-        } else if (doc.status === 'REVIEW_REQUIRED') {
-            // Author can finalize
-            if (isAuthor) {
-                userCanWrite = true;
-                userCanReview = true;
-            } else {
-                readOnly = true;
-            }
-        } else {
-             // Fallback
-             readOnly = true;
+        let userCanReview = userCanWrite;
+        // Exception: In DRAFT, Author just edits, maybe review is off?
+        // Original logic said: if DRAFT & Author -> UserCanReview = false.
+        if (doc.status === 'DRAFT' && user.role !== 'ADMIN') {
+             userCanReview = false;
         }
+
+        const readOnly = !userCanWrite;
 
         let userFriendlyName = user.name || user.email;
 
@@ -288,6 +278,12 @@ export const putFile = async (req: Request, res: Response) => {
         if (!result) return res.status(404).json({ error: 'File not found' });
         const { doc, version } = result;
 
+        // Security Check: Verify Write Permission
+        if (!canUserWrite(doc, wopiToken.user)) {
+             console.warn(`[WOPI] Write denied for user ${wopiToken.userId} on doc ${id} (Status: ${doc.status})`);
+             return res.status(403).json({ error: 'Read Only: You do not have permission to edit this document.' });
+        }
+
         // Versioning Logic
         const ext = path.extname(version.filePath);
         let baseName = path.basename(version.filePath, ext);
@@ -341,6 +337,20 @@ export const handleLock = async (req: Request, res: Response) => {
 
         if (!override) {
              return res.status(400).json({ error: 'Missing X-WOPI-Override' });
+        }
+
+        // Get doc info for permission check
+        // Optimisation: Maybe just fetch status/author/approvers?
+        // But getDocInfo is handy.
+        const docResult = await getDocInfo(id);
+        if (!docResult) return res.status(404).json({ error: 'Document not found' });
+
+        // Check Write Permission for state-changing lock operations
+        if (['LOCK', 'REFRESH_LOCK', 'UNLOCK'].includes(override)) {
+             if (!canUserWrite(docResult.doc, wopiToken.user)) {
+                 console.warn(`[WOPI] Lock operation ${override} denied for user ${wopiToken.userId} on doc ${id}`);
+                 return res.status(403).json({ error: 'Read Only: Cannot modify locks.' });
+             }
         }
 
         const currentLock = await prisma.wopiLock.findUnique({
