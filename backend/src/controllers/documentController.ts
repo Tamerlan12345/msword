@@ -73,6 +73,21 @@ export const updateDocument = async (req: any, res: Response) => {
                  return res.status(403).json({ error: 'Not authorized' });
              }
 
+             // Security: Validate status transitions for non-admins
+             if (user.role !== 'ADMIN') {
+                 // Prevent bypassing approval workflow
+                 if (status === 'APPROVED' && doc.status !== 'REVIEW_REQUIRED') {
+                     return res.status(403).json({ error: 'Cannot approve document before review completion' });
+                 }
+                 // Prevent manually setting internal statuses
+                 if (status === 'ON_APPROVAL') {
+                      return res.status(403).json({ error: 'Use assign approvers endpoint to start approval' });
+                 }
+                 if (status === 'REVIEW_REQUIRED' || status === 'REJECTED') {
+                      return res.status(403).json({ error: 'Cannot manually set this status' });
+                 }
+             }
+
              const updatedDoc = await prisma.document.update({
                 where: { id },
                 data: { status }
