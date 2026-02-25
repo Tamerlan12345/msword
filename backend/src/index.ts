@@ -647,7 +647,8 @@ const init = async () => {
         const count = await prisma.user.count();
         if (count === 0) {
             console.log('Creating default admin...');
-            const hash = await bcrypt.hash('Veronika77777', 10);
+            const adminPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(12).toString('hex');
+            const hash = await bcrypt.hash(adminPassword, 10);
             await prisma.user.create({
             data: {
                 email: 'veronik7@admin.com',
@@ -656,7 +657,13 @@ const init = async () => {
                 role: 'ADMIN'
             }
             });
-            console.log('Admin created.');
+
+            if (!process.env.ADMIN_PASSWORD) {
+                console.log(`Admin created. Email: veronik7@admin.com, Password: ${adminPassword}`);
+                console.warn("WARNING: Generated random admin password. Please save it or set ADMIN_PASSWORD env var.");
+            } else {
+                console.log('Admin created using ADMIN_PASSWORD env var.');
+            }
         }
     } catch (e) {
         console.log('Init skipped or failed (db might be down)');
