@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
+import { prisma } from './lib/prisma';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -13,11 +14,12 @@ import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
 import { cleanupTokens } from './controllers/wopiController';
+import { getDocuments } from './controllers/documentController';
 
 dotenv.config();
 
 const app = express();
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
 const ONLYOFFICE_API_URL = process.env.ONLYOFFICE_API_URL || 'http://localhost:8081';
@@ -174,36 +176,7 @@ app.post('/api/documents', authenticateToken, upload.single('file'), async (req:
 });
 
 // 4. GET DOCUMENTS
-app.get('/api/documents', authenticateToken, async (req: any, res: any) => {
-  try {
-    const user = req.user;
-    let where: any = {};
-
-    if (user.role !== 'ADMIN') {
-        where = {
-            OR: [
-                { authorId: user.id },
-                {
-                    approvers: {
-                        some: {
-                            userId: user.id
-                        }
-                    }
-                }
-            ]
-        };
-    }
-
-    const docs = await prisma.document.findMany({
-      where,
-      include: { author: true, versions: true, approvers: true },
-      orderBy: { updatedAt: 'desc' },
-    });
-    res.json(docs);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch documents' });
-  }
-});
+app.get('/api/documents', authenticateToken, getDocuments);
 
 // 5. GET DOCUMENT DETAIL
 app.get('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
