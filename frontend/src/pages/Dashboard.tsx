@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { NewDocumentModal } from '../components/NewDocumentModal';
-import { Plus } from 'lucide-react';
+import { Plus, FileText, CheckCircle, Archive } from 'lucide-react';
 import { clsx } from 'clsx';
 import axios from 'axios';
 
@@ -157,8 +157,31 @@ export const Dashboard = () => {
           })}
 
           {filteredDocuments.length === 0 && (
-            <div className="col-span-full text-center py-20 text-gray-400">
-              В этой категории нет документов.
+            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center" role="status">
+              <div className="bg-gray-100 p-4 rounded-full mb-4">
+                {activeTab === 'my-tasks' && <FileText className="w-8 h-8 text-gray-400" />}
+                {activeTab === 'on-approval' && <CheckCircle className="w-8 h-8 text-green-600" />}
+                {activeTab === 'archive' && <Archive className="w-8 h-8 text-gray-400" />}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                {activeTab === 'my-tasks' && 'У вас пока нет документов'}
+                {activeTab === 'on-approval' && 'Все согласовано!'}
+                {activeTab === 'archive' && 'Архив пуст'}
+              </h3>
+              <p className="text-gray-500 max-w-sm mb-6">
+                {activeTab === 'my-tasks' && 'Создайте новый документ, чтобы начать работу с системой согласования.'}
+                {activeTab === 'on-approval' && 'На данный момент нет документов, требующих вашего внимания. Отличная работа!'}
+                {activeTab === 'archive' && 'Здесь будут храниться завершенные и отклоненные документы.'}
+              </p>
+              {activeTab === 'my-tasks' && (
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center gap-2 bg-primary hover:bg-primary-light text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Создать документ
+                </button>
+              )}
             </div>
           )}
         </div>
