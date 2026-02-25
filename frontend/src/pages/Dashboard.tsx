@@ -111,7 +111,7 @@ export const Dashboard = () => {
           <div className="pb-2">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-primary hover:bg-primary-light text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="flex items-center gap-2 bg-primary hover:bg-primary-light text-white px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 active:scale-95 motion-reduce:transform-none"
             >
               <Plus className="w-4 h-4" />
               Новый документ
@@ -154,7 +154,7 @@ export const Dashboard = () => {
               <Link
                 key={doc.id}
                 to={`/documents/${doc.id}`}
-                className="block bg-white rounded-lg p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-primary/30 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                className="block bg-white rounded-lg p-5 shadow-sm border border-gray-100 hover:shadow-lg hover:-translate-y-1 hover:border-primary/30 transition-all duration-300 ease-out motion-reduce:transform-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 aria-label={`Документ: ${doc.title}, Статус: ${getStatusText(doc.status)}`}
               >
                 <div className="flex justify-between items-start mb-3">
