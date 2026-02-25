@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { NewDocumentModal } from '../components/NewDocumentModal';
-import { Plus, FileText, CheckCircle, Archive } from 'lucide-react';
+import { Plus, FileText, CheckCircle, Archive, Loader2, AlertTriangle, RefreshCcw } from 'lucide-react';
 import { clsx } from 'clsx';
 import axios from 'axios';
 
@@ -18,6 +18,8 @@ export const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [documents, setDocuments] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -27,11 +29,16 @@ export const Dashboard = () => {
   }, []);
 
   const fetchDocuments = async () => {
+    setIsLoading(true);
+    setError(null);
     try {
       const res = await axios.get('/api/documents');
       setDocuments(res.data);
     } catch (error) {
       console.error(error);
+      setError('Не удалось загрузить документы. Пожалуйста, попробуйте позже.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -100,7 +107,31 @@ export const Dashboard = () => {
 
         {/* Content Area */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDocuments.map((doc) => {
+          {isLoading && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
+              <p className="text-gray-500 font-medium">Загрузка документов...</p>
+            </div>
+          )}
+
+          {error && !isLoading && (
+            <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
+              <div className="bg-red-50 p-4 rounded-full mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Ошибка загрузки</h3>
+              <p className="text-gray-500 max-w-sm mb-6">{error}</p>
+              <button
+                onClick={fetchDocuments}
+                className="flex items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                Повторить
+              </button>
+            </div>
+          )}
+
+          {!isLoading && !error && filteredDocuments.map((doc) => {
             const total = doc.approvers?.length || 0;
             const approvedCount = doc.approvers?.filter((a: any) => a.status === 'APPROVED').length || 0;
             const percent = doc.status === 'APPROVED' ? 100 : (total > 0 ? (approvedCount / total) * 100 : 0);
@@ -156,7 +187,7 @@ export const Dashboard = () => {
             );
           })}
 
-          {filteredDocuments.length === 0 && (
+          {!isLoading && !error && filteredDocuments.length === 0 && (
             <div className="col-span-full flex flex-col items-center justify-center py-16 text-center" role="status">
               <div className="bg-gray-100 p-4 rounded-full mb-4">
                 {activeTab === 'my-tasks' && <FileText className="w-8 h-8 text-gray-400" />}
