@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken';
+import { prisma } from '../lib/prisma';
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
 const BACKEND_PUBLIC_URL = process.env.BACKEND_PUBLIC_URL || 'https://dmbp1.up.railway.app';
 const INTERNAL_WOPI_URL = process.env.INTERNAL_WOPI_URL || 'http://backend:3000';
