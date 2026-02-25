@@ -14,7 +14,7 @@ import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
 import { cleanupTokens } from './controllers/wopiController';
-import { getDocuments } from './controllers/documentController';
+import { getDocuments, updateDocument } from './controllers/documentController';
 
 dotenv.config();
 
@@ -592,24 +592,7 @@ app.put('/api/documents/:id/forward', authenticateToken, async (req: any, res: a
 });
 
 // 9. GENERAL UPDATE (Legacy/Status manual change)
-app.put('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
-    // Keeps existing logic for manual status updates if needed
-    try {
-        const { id } = req.params;
-        const { status } = req.body;
-
-        if (status) {
-             const doc = await prisma.document.update({
-                where: { id },
-                data: { status }
-            });
-            return res.json(doc);
-        }
-        res.json({message: "Nothing to update"});
-    } catch (e) {
-        res.status(500).json({error: "Update failed"});
-    }
-});
+app.put('/api/documents/:id', authenticateToken, updateDocument);
 
 
 // 10. DELETE DOCUMENT
