@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { NewDocumentModal } from '../components/NewDocumentModal';
 import { Plus, FileText, CheckCircle, Archive, Loader2, AlertTriangle, RefreshCcw } from 'lucide-react';
@@ -11,6 +11,17 @@ const TABS = [
   { id: 'on-approval', label: 'На согласовании' },
   { id: 'archive', label: 'Архив' },
 ];
+
+const getStatusText = (status: string) => {
+  switch (status) {
+    case 'DRAFT': return 'Черновик';
+    case 'ON_APPROVAL': return 'На согласовании';
+    case 'APPROVED': return 'Согласован';
+    case 'REVIEW_REQUIRED': return 'Требует доработки';
+    case 'REJECTED': return 'Отклонен';
+    default: return status;
+  }
+};
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -77,13 +88,16 @@ export const Dashboard = () => {
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Tabs & Actions */}
         <div className="flex items-center justify-between mb-6 border-b border-gray-200">
-          <div className="flex gap-8">
+          <div className="flex gap-8" role="tablist">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                aria-controls="document-list"
                 onClick={() => setActiveTab(tab.id)}
                 className={clsx(
-                  "pb-4 px-1 text-sm font-medium transition-colors relative",
+                  "pb-4 px-1 text-sm font-medium transition-colors relative outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm",
                   activeTab === tab.id
                     ? "text-primary border-b-2 border-primary"
                     : "text-gray-500 hover:text-gray-700"
@@ -106,7 +120,7 @@ export const Dashboard = () => {
         </div>
 
         {/* Content Area */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div id="document-list" role="tabpanel" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading && (
             <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
               <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
@@ -137,10 +151,11 @@ export const Dashboard = () => {
             const percent = doc.status === 'APPROVED' ? 100 : (total > 0 ? (approvedCount / total) * 100 : 0);
 
             return (
-              <div
+              <Link
                 key={doc.id}
-                onClick={() => navigate(`/documents/${doc.id}`)}
-                className="bg-white rounded-lg p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+                to={`/documents/${doc.id}`}
+                className="block bg-white rounded-lg p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-primary/30 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                aria-label={`Документ: ${doc.title}, Статус: ${getStatusText(doc.status)}`}
               >
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="font-bold text-gray-800 line-clamp-2">{doc.title}</h3>
@@ -152,10 +167,7 @@ export const Dashboard = () => {
                     doc.status === 'REVIEW_REQUIRED' ? "bg-yellow-50 text-yellow-700" :
                     "bg-red-50 text-red-700"
                   )}>
-                    {doc.status === 'DRAFT' ? 'Черновик' :
-                     doc.status === 'ON_APPROVAL' ? 'На согласовании' :
-                     doc.status === 'APPROVED' ? 'Согласован' :
-                     doc.status === 'REVIEW_REQUIRED' ? 'Требует доработки' : 'Отклонен'}
+                    {getStatusText(doc.status)}
                   </span>
                 </div>
 
@@ -167,7 +179,7 @@ export const Dashboard = () => {
                   <div className="flex justify-between text-xs text-gray-500 mb-1">
                     <span>Статус</span>
                     <span className="text-primary font-medium">
-                       {doc.status}
+                       {getStatusText(doc.status)}
                     </span>
                   </div>
                   {/* Visual progress bar can be smarter, but for now just show something */}
@@ -183,7 +195,7 @@ export const Dashboard = () => {
                     ></div>
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
 
