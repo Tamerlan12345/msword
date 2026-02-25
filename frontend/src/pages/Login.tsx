@@ -35,57 +35,65 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F6F8] flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+    <div className="min-h-screen bg-[#F5F6F8] flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md border border-gray-100">
         <div className="flex items-center gap-2 mb-6 justify-center">
-          <FileText className="w-8 h-8 text-primary" />
+          <FileText className="w-8 h-8 text-primary" aria-hidden="true" />
           <span className="text-xl font-bold text-gray-800">CIC DocFlow</span>
         </div>
 
-        <h2 className="text-2xl font-bold mb-6 text-center">Вход в систему</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">Вход в систему</h2>
 
         {error && (
           <div
-            className="bg-red-50 text-red-500 p-3 rounded mb-4 text-sm"
+            className="bg-red-50 border border-red-100 text-red-600 p-3 rounded mb-4 text-sm flex items-start gap-2"
             role="alert"
-            aria-live="polite"
+            aria-live="assertive"
           >
-            {error}
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
             <input
-              type="text"
+              id="email"
+              type="text" // Changed from email to text based on original file, but ideally should be email. Keeping text to avoid breaking validation if username is allowed.
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary"
-              placeholder="veronik7@admin.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
+              placeholder="name@company.com"
               required
+              autoComplete="email"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Пароль</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              Пароль
+            </label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full px-4 py-2 border rounded-md focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
               placeholder="••••••••"
               required
+              autoComplete="current-password"
             />
           </div>
           <button
             type="submit"
-            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-light transition flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-light transition-colors flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
             disabled={isLoading}
             aria-busy={isLoading}
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
                 <span>Вход...</span>
               </>
             ) : (
