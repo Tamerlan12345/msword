@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, FileText, LogOut, Settings } from 'lucide-react';
+import { Bell, FileText, LogOut, Settings, BarChart } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 
 export const Header = () => {
@@ -26,16 +26,26 @@ export const Header = () => {
       </Link>
 
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Если админ - показываем кнопку админки */}
+        {/* Если админ - показываем кнопку админки и метрик */}
         {user.role === 'ADMIN' && (
-          <button
-            onClick={() => navigate('/admin')}
-            className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full focus-visible:ring-2 focus-visible:ring-primary outline-none transition-colors"
-            title="Админ панель"
-            aria-label="Перейти в панель администратора"
-          >
-            <Settings className="w-5 h-5" aria-hidden="true" />
-          </button>
+          <>
+            <button
+              onClick={() => navigate('/metrics')}
+              className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full focus-visible:ring-2 focus-visible:ring-primary outline-none transition-colors"
+              title="Метрики"
+              aria-label="Перейти к метрикам"
+            >
+              <BarChart className="w-5 h-5" aria-hidden="true" />
+            </button>
+            <button
+              onClick={() => navigate('/admin')}
+              className="p-2 text-gray-600 hover:text-primary hover:bg-gray-100 rounded-full focus-visible:ring-2 focus-visible:ring-primary outline-none transition-colors"
+              title="Админ панель"
+              aria-label="Перейти в панель администратора"
+            >
+              <Settings className="w-5 h-5" aria-hidden="true" />
+            </button>
+          </>
         )}
 
         <Link

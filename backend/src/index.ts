@@ -13,6 +13,7 @@ import axios from 'axios';
 import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
+import metricsRoutes from './routes/metricsRoutes';
 import { cleanupTokens, canUserWrite } from './controllers/wopiController';
 import { getDocuments, updateDocument, rejectDocument } from './controllers/documentController';
 
@@ -139,6 +140,9 @@ app.post('/api/users', async (req, res) => {
 
 // GET USERS (For approver selection) & PROFILE
 app.use('/api/users', authenticateToken, userRoutes);
+
+// METRICS (Admin only)
+app.use('/api/metrics', authenticateToken, metricsRoutes);
 
 // 3. UPLOAD DOCUMENT
 app.post('/api/documents', authenticateToken, upload.single('file'), async (req: any, res: any) => {
