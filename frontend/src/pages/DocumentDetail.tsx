@@ -171,7 +171,7 @@ export const DocumentDetail = () => {
       <div className="flex flex-1 pt-16 overflow-hidden relative">
 
         {/* Center Content */}
-        <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'mr-96' : 'mr-0'}`}>
+        <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarOpen ? 'mr-0 sm:mr-96' : 'mr-0'}`}>
             {/* Toolbar */}
             <div className="bg-white border-b px-4 py-2 flex justify-between items-center h-14 shadow-sm z-10">
                 <div className="flex items-center gap-4">
@@ -249,7 +249,7 @@ export const DocumentDetail = () => {
         </div>
 
         {/* Sidebar */}
-        <div className={`absolute top-0 right-0 h-full w-96 bg-white shadow-xl border-l transform transition-transform duration-300 pt-16 z-20 overflow-y-auto
+        <div className={`absolute top-0 right-0 h-full w-full sm:w-96 bg-white shadow-xl border-l transform transition-transform duration-300 pt-16 z-20 overflow-y-auto
             ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full'}`}>
 
             <div className="p-5 space-y-6">
@@ -314,7 +314,7 @@ export const DocumentDetail = () => {
                                  <div className="mb-3">
                                      <label className="text-xs font-medium text-gray-500 mb-1 block">Добавить участника:</label>
                                      <select
-                                        className="w-full text-sm border rounded p-1.5"
+                                        className="w-full text-sm border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-shadow"
                                         onChange={(e) => {
                                             if (e.target.value) {
                                                 addApprover(e.target.value);
@@ -363,7 +363,7 @@ export const DocumentDetail = () => {
                         <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                             <p className="text-sm font-medium text-blue-900 mb-2">Ваша очередь!</p>
                             <textarea
-                                className="w-full text-sm p-2 border rounded mb-3 focus:outline-none focus:border-blue-500"
+                                className="w-full text-sm p-3 border border-gray-300 rounded-md mb-3 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-shadow"
                                 rows={3}
                                 placeholder="Напишите комментарий (обязательно или опционально)..."
                                 value={comment}
