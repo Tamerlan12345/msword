@@ -14,7 +14,7 @@ import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
 import { cleanupTokens } from './controllers/wopiController';
-import { getDocuments, updateDocument } from './controllers/documentController';
+import { getDocuments, updateDocument, rejectDocument } from './controllers/documentController';
 
 dotenv.config();
 
@@ -590,6 +590,9 @@ app.put('/api/documents/:id/forward', authenticateToken, async (req: any, res: a
     res.status(500).json({ error: 'Ошибка' });
   }
 });
+
+// 8.5 REJECT (Stop workflow)
+app.put('/api/documents/:id/reject', authenticateToken, rejectDocument);
 
 // 9. GENERAL UPDATE (Legacy/Status manual change)
 app.put('/api/documents/:id', authenticateToken, updateDocument);
