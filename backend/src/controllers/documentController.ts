@@ -58,3 +58,29 @@ export const getDocuments = async (req: any, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch documents' });
   }
 };
+
+export const updateDocument = async (req: any, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        const user = req.user;
+
+        if (status) {
+             const doc = await prisma.document.findUnique({ where: { id } });
+             if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+             if (user.role !== 'ADMIN' && doc.authorId !== user.id) {
+                 return res.status(403).json({ error: 'Not authorized' });
+             }
+
+             const updatedDoc = await prisma.document.update({
+                where: { id },
+                data: { status }
+            });
+            return res.json(updatedDoc);
+        }
+        res.json({message: "Nothing to update"});
+    } catch (e) {
+        res.status(500).json({error: "Update failed"});
+    }
+};
