@@ -137,3 +137,36 @@ export const rejectDocument = async (req: any, res: Response) => {
     res.status(500).json({ error: 'Ошибка отклонения документа' });
   }
 };
+
+export const deleteDocument = async (req: any, res: Response) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    const doc = await prisma.document.findUnique({ where: { id } });
+    if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+    if (user.role !== 'ADMIN') {
+      if (doc.authorId !== user.id) return res.status(403).json({ error: 'Not authorized' });
+      // Allow author to delete if DRAFT or REJECTED
+      if (doc.status !== 'DRAFT' && doc.status !== 'REJECTED') {
+         return res.status(403).json({ error: 'Can only delete drafts' });
+      }
+    }
+
+    // Delete related
+    await prisma.$transaction([
+      prisma.wopiToken.deleteMany({ where: { documentId: id } }),
+      prisma.wopiLock.deleteMany({ where: { documentId: id } }),
+      prisma.documentVersion.deleteMany({ where: { documentId: id } }),
+      prisma.comment.deleteMany({ where: { documentId: id } }),
+      prisma.documentApprover.deleteMany({ where: { documentId: id } }),
+      prisma.document.delete({ where: { id } }),
+    ]);
+
+    res.json({ message: 'Document deleted' });
+  } catch (error) {
+    console.error('Delete Error:', error);
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+};

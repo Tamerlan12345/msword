@@ -15,7 +15,7 @@ import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
 import metricsRoutes from './routes/metricsRoutes';
 import { cleanupTokens, canUserWrite } from './controllers/wopiController';
-import { getDocuments, updateDocument, rejectDocument } from './controllers/documentController';
+import { getDocuments, updateDocument, rejectDocument, deleteDocument } from './controllers/documentController';
 
 dotenv.config();
 
@@ -614,36 +614,7 @@ app.put('/api/documents/:id', authenticateToken, updateDocument);
 
 
 // 10. DELETE DOCUMENT
-app.delete('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
-  try {
-    const { id } = req.params;
-    const user = req.user;
-
-    const doc = await prisma.document.findUnique({ where: { id } });
-    if (!doc) return res.status(404).json({ error: 'Document not found' });
-
-    if (user.role !== 'ADMIN') {
-      if (doc.authorId !== user.id) return res.status(403).json({ error: 'Not authorized' });
-      // Allow author to delete if DRAFT or REJECTED
-      if (doc.status !== 'DRAFT' && doc.status !== 'REJECTED') {
-         return res.status(403).json({ error: 'Can only delete drafts' });
-      }
-    }
-
-    // Delete related
-    await prisma.$transaction([
-      prisma.documentVersion.deleteMany({ where: { documentId: id } }),
-      prisma.comment.deleteMany({ where: { documentId: id } }),
-      prisma.documentApprover.deleteMany({ where: { documentId: id } }),
-      prisma.document.delete({ where: { id } }),
-    ]);
-
-    res.json({ message: 'Document deleted' });
-  } catch (error) {
-    console.error('Delete Error:', error);
-    res.status(500).json({ error: 'Failed to delete document' });
-  }
-});
+app.delete('/api/documents/:id', authenticateToken, deleteDocument);
 
 // INIT ADMIN
 const init = async () => {
