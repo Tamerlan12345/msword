@@ -14,8 +14,8 @@ import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
 import metricsRoutes from './routes/metricsRoutes';
-import { cleanupTokens, canUserWrite } from './controllers/wopiController';
-import { getDocuments, updateDocument, rejectDocument, deleteDocument } from './controllers/documentController';
+import { cleanupTokens, canUserWrite, generateWopiToken } from './controllers/wopiController';
+import { getDocuments, updateDocument, rejectDocument, deleteDocument, downloadDocument } from './controllers/documentController';
 
 dotenv.config();
 
@@ -41,7 +41,8 @@ app.use(express.json({ limit: '50mb' }));
 // Serve frontend static files
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Security: Disabled public static serving of uploads
+// app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // WOPI Routes
 app.use('/api/wopi', wopiRoutes);
@@ -181,6 +182,9 @@ app.post('/api/documents', authenticateToken, upload.single('file'), async (req:
 
 // 4. GET DOCUMENTS
 app.get('/api/documents', authenticateToken, getDocuments);
+
+// 4.5 DOWNLOAD DOCUMENT (Secure)
+app.get('/api/documents/:id/download', authenticateToken, downloadDocument);
 
 // 5. GET DOCUMENT DETAIL
 app.get('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
@@ -354,7 +358,12 @@ app.get('/api/documents/:id/onlyoffice/config', authenticateToken, async (req: a
     // We assume backend is reachable via host.docker.internal:3000 based on CALLBACK_URL hint
     // Extract base from CALLBACK_URL
     const baseUrl = CALLBACK_URL.replace('/api/onlyoffice/callback', '');
-    const fileUrl = `${baseUrl}/uploads/${fileName}`;
+
+    // Security: Use WOPI GetFile endpoint instead of public uploads
+    const wopiToken = await generateWopiToken(user.id, id);
+    // Use configured BACKEND_PUBLIC_URL if available, otherwise infer from callback or localhost
+    const publicUrl = process.env.BACKEND_PUBLIC_URL || baseUrl;
+    const fileUrl = `${publicUrl}/api/wopi/files/${id}/contents?access_token=${wopiToken}`;
 
     const config = {
       document: {
@@ -644,8 +653,12 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(frontendBuildPath, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  // Cleanup tokens every hour
-  setInterval(cleanupTokens, 60 * 60 * 1000);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    // Cleanup tokens every hour
+    setInterval(cleanupTokens, 60 * 60 * 1000);
+  });
+}
+
+export default app;
