@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Header } from '../components/Header';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { ArrowLeft, Save, CheckCircle, UserPlus, ChevronLeft, ChevronRight, Menu, ArrowUp, ArrowDown, Trash, Send, RotateCcw, XCircle } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, UserPlus, ChevronLeft, ChevronRight, Menu, ArrowUp, ArrowDown, Trash, Send, RotateCcw, XCircle, Loader2 } from 'lucide-react';
 import { DocumentEditor } from '../components/DocumentEditor';
 import { clsx } from 'clsx';
 
@@ -155,7 +155,7 @@ export const DocumentDetail = () => {
       setSelectedApprovers(newL);
   };
 
-  if (!doc) return <div>Загрузка...</div>;
+  if (!doc) return <div className="flex justify-center items-center h-screen"><Loader2 className="w-10 h-10 text-primary animate-spin" /></div>;
 
   const isAuthor = currentUser && doc.authorId === currentUser.id;
   const myApprover = doc.approvers?.find((a: any) => a.userId === currentUser?.id);
@@ -264,33 +264,51 @@ export const DocumentDetail = () => {
                 {doc.approvers?.length > 0 && (
                     <div className="space-y-3">
                         <h4 className="text-sm font-semibold text-gray-700">Маршрут согласования</h4>
-                        <div className="space-y-2">
+                        <div className="space-y-4 relative pl-8">
+                            <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-gray-200" />
                             {sortedApprovers.map((app: any, idx: number) => (
-                                <div key={app.id} className={clsx("p-3 rounded-lg border text-sm relative transition-all duration-200",
-                                    app.isCurrent
-                                        ? "border-primary bg-blue-50/30 shadow-sm ring-1 ring-primary/20"
-                                        : "border-gray-100 bg-white hover:border-gray-200"
-                                )}>
-                                    <div className="flex justify-between items-start">
-                                        <span className="font-medium text-gray-900">
-                                            {idx + 1}. {app.user?.name || 'User'}
-                                        </span>
-                                        {app.status === 'APPROVED' && <CheckCircle className="w-4 h-4 text-green-600" />}
-                                        {app.isCurrent && <span className="text-xs bg-blue-200 text-blue-800 px-1.5 rounded">Текущий</span>}
+                                <div key={app.id} className="relative">
+                                    {/* Timeline Node */}
+                                    <div className="absolute -left-8 bg-white p-1">
+                                      {app.status === 'APPROVED' && <CheckCircle className="w-5 h-5 text-green-600" />}
+                                      {app.status === 'REJECTED' && <XCircle className="w-5 h-5 text-red-500" />}
+                                      {app.isCurrent && app.status === 'PENDING' && (
+                                          <div className="w-5 h-5 rounded-full bg-blue-100 border-2 border-blue-500 flex items-center justify-center">
+                                              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                          </div>
+                                      )}
+                                      {!app.isCurrent && app.status === 'PENDING' && (
+                                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 bg-white" />
+                                      )}
                                     </div>
-                                    <div className="text-gray-500 text-xs mt-1">
-                                        {app.user?.department}
+
+                                    {/* Card Content */}
+                                    <div className={clsx("p-3 rounded-lg border text-sm transition-all duration-200",
+                                        app.isCurrent
+                                            ? "border-primary bg-blue-50/30 shadow-sm ring-1 ring-primary/20"
+                                            : "border-gray-100 bg-white hover:border-gray-200"
+                                    )}>
+                                        <div className="flex justify-between items-start">
+                                            <span className="font-medium text-gray-900">
+                                                {app.user?.name || 'User'}
+                                            </span>
+                                            {app.isCurrent && <span className="text-[10px] bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded font-medium">Текущий</span>}
+                                        </div>
+                                        <div className="text-gray-500 text-xs mt-1">
+                                            {app.user?.department}
+                                        </div>
+                                        {app.comment && (
+                                            <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic relative">
+                                                <div className="absolute -top-1 left-3 w-2 h-2 bg-gray-50 border-t border-l border-gray-100 transform rotate-45"></div>
+                                                "{app.comment}"
+                                            </div>
+                                        )}
+                                        {app.actionDate && (
+                                            <div className="text-[10px] text-gray-400 mt-2 text-right border-t border-gray-100 pt-1">
+                                                {new Date(app.actionDate).toLocaleString()}
+                                            </div>
+                                        )}
                                     </div>
-                                    {app.comment && (
-                                        <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic">
-                                            "{app.comment}"
-                                        </div>
-                                    )}
-                                    {app.actionDate && (
-                                        <div className="text-[10px] text-gray-400 mt-1 text-right">
-                                            {new Date(app.actionDate).toLocaleString()}
-                                        </div>
-                                    )}
                                 </div>
                             ))}
                         </div>
