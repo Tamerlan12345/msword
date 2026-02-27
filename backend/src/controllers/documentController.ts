@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
+import path from 'path';
 
 export const getDocuments = async (req: any, res: Response) => {
   try {
@@ -169,4 +170,37 @@ export const deleteDocument = async (req: any, res: Response) => {
     console.error('Delete Error:', error);
     res.status(500).json({ error: 'Failed to delete document' });
   }
+};
+
+export const downloadDocument = async (req: any, res: Response) => {
+    try {
+        const { id } = req.params;
+        const user = req.user;
+
+        const doc = await prisma.document.findUnique({
+            where: { id },
+            include: {
+                versions: { orderBy: { version: 'desc' }, take: 1 },
+                approvers: true
+            }
+        });
+
+        if (!doc) return res.status(404).json({ error: 'Document not found' });
+
+        // Check permissions: Admin, Author, or Approver
+        const isApprover = doc.approvers.some((a: any) => a.userId === user.id);
+        if (user.role !== 'ADMIN' && doc.authorId !== user.id && !isApprover) {
+            return res.status(403).json({ error: 'Permission denied' });
+        }
+
+        const latestVersion = doc.versions[0];
+        if (!latestVersion) return res.status(404).json({ error: 'No file to download' });
+
+        const filePath = path.resolve(latestVersion.filePath);
+        res.download(filePath, path.basename(filePath));
+
+    } catch (error) {
+        console.error('Download Error:', error);
+        res.status(500).json({ error: 'Failed to download document' });
+    }
 };
