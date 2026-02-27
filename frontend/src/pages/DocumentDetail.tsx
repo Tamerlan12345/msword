@@ -182,7 +182,7 @@ export const DocumentDetail = () => {
                         <h1 className="text-lg font-bold truncate max-w-md leading-tight">{doc.title}</h1>
                         <div className="flex items-center gap-2 text-xs">
                              <span className={clsx(
-                                "px-1.5 py-0.5 rounded font-medium",
+                                "px-2 py-1 text-xs font-medium rounded-md",
                                 doc.status === 'DRAFT' ? "bg-gray-100 text-gray-600" :
                                 doc.status === 'ON_APPROVAL' ? "bg-blue-50 text-blue-700" :
                                 doc.status === 'APPROVED' ? "bg-green-50 text-green-700" :
@@ -266,9 +266,10 @@ export const DocumentDetail = () => {
                         <h4 className="text-sm font-semibold text-gray-700">Маршрут согласования</h4>
                         <div className="space-y-2">
                             {sortedApprovers.map((app: any, idx: number) => (
-                                <div key={app.id} className={clsx("p-3 rounded-lg border text-sm relative",
-                                    app.isCurrent ? "border-blue-500 bg-blue-50" :
-                                    app.status === 'APPROVED' ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"
+                                <div key={app.id} className={clsx("p-3 rounded-lg border text-sm relative transition-all duration-200",
+                                    app.isCurrent
+                                        ? "border-primary bg-blue-50/30 shadow-sm ring-1 ring-primary/20"
+                                        : "border-gray-100 bg-white hover:border-gray-200"
                                 )}>
                                     <div className="flex justify-between items-start">
                                         <span className="font-medium text-gray-900">
@@ -281,7 +282,7 @@ export const DocumentDetail = () => {
                                         {app.user?.department}
                                     </div>
                                     {app.comment && (
-                                        <div className="mt-2 text-xs text-gray-600 bg-white p-2 rounded border border-gray-100 italic">
+                                        <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 italic">
                                             "{app.comment}"
                                         </div>
                                     )}
@@ -347,10 +348,10 @@ export const DocumentDetail = () => {
                                  </div>
 
                                  <div className="grid grid-cols-2 gap-2">
-                                     <button onClick={handleSendToApproval} disabled={selectedApprovers.length === 0} className="bg-primary text-white py-1.5 rounded text-xs hover:bg-primary-dark disabled:opacity-50">
+                                     <button onClick={handleSendToApproval} disabled={selectedApprovers.length === 0} className="bg-primary text-white py-1.5 rounded text-xs hover:bg-primary-dark disabled:opacity-50 transition-all duration-200 active:scale-95">
                                          Запустить
                                      </button>
-                                     <button onClick={() => setIsEditingApprovers(false)} className="bg-white border text-gray-600 py-1.5 rounded text-xs hover:bg-gray-50">
+                                     <button onClick={() => setIsEditingApprovers(false)} className="bg-white border text-gray-600 py-1.5 rounded text-xs hover:bg-gray-50 transition-all duration-200 active:scale-95">
                                          Отмена
                                      </button>
                                  </div>
@@ -372,13 +373,13 @@ export const DocumentDetail = () => {
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleForward}
-                                    className="flex-1 bg-blue-600 text-white py-2 rounded flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors"
+                                    className="flex-1 bg-blue-600 text-white py-2 rounded flex justify-center items-center gap-2 hover:bg-blue-700 transition-all duration-200 active:scale-95"
                                 >
                                     <Send className="w-4 h-4" /> Передать дальше
                                 </button>
                                 <button
                                     onClick={handleReject}
-                                    className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded flex justify-center items-center gap-2 hover:bg-red-100 transition-colors"
+                                    className="flex-1 bg-red-50 text-red-600 border border-red-200 py-2 rounded flex justify-center items-center gap-2 hover:bg-red-100 transition-all duration-200 active:scale-95"
                                     title="Отклонить"
                                 >
                                     <XCircle className="w-4 h-4" /> Отклонить
@@ -401,13 +402,13 @@ export const DocumentDetail = () => {
                             <div className="grid grid-cols-1 gap-2">
                                 <button
                                     onClick={() => handleFinalize('APPROVE')}
-                                    className="w-full bg-green-600 text-white py-2 rounded flex justify-center items-center gap-2 hover:bg-green-700"
+                                    className="w-full bg-green-600 text-white py-2 rounded flex justify-center items-center gap-2 hover:bg-green-700 transition-all duration-200 active:scale-95"
                                 >
                                     <CheckCircle className="w-4 h-4" /> Утвердить и в Архив
                                 </button>
                                 <button
                                     onClick={() => handleFinalize('RESTART')}
-                                    className="w-full bg-white border border-gray-300 text-gray-700 py-2 rounded flex justify-center items-center gap-2 hover:bg-gray-50"
+                                    className="w-full bg-white border border-gray-300 text-gray-700 py-2 rounded flex justify-center items-center gap-2 hover:bg-gray-50 transition-all duration-200 active:scale-95"
                                 >
                                     <RotateCcw className="w-4 h-4" /> Вернуть на доработку
                                 </button>
