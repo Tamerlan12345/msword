@@ -1,7 +1,8 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-// import { PrismaClient } from '@prisma/client';
 import { prisma } from './lib/prisma';
 import multer from 'multer';
 import path from 'path';
@@ -10,12 +11,12 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import axios from 'axios';
-import { GoogleDriveService } from './services/googleDriveService';
 import wopiRoutes from './routes/wopiRoutes';
 import userRoutes from './routes/userRoutes';
 import metricsRoutes from './routes/metricsRoutes';
 import { cleanupTokens, canUserWrite, generateWopiToken } from './controllers/wopiController';
 import { getDocuments, updateDocument, rejectDocument, deleteDocument, downloadDocument } from './controllers/documentController';
+import { upload as standardUpload } from './middleware/uploadMiddleware';
 
 dotenv.config();
 
@@ -27,8 +28,21 @@ const ONLYOFFICE_API_URL = process.env.ONLYOFFICE_API_URL || 'http://localhost:8
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || 'secret123';
 const CALLBACK_URL = process.env.CALLBACK_URL || 'http://host.docker.internal:3000/api/onlyoffice/callback';
 
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow OnlyOffice/Collabora frames
+  contentSecurityPolicy: false, // OnlyOffice requires specific CSP or disabled for simplicity in dev
+}));
+
+// Rate limiting for auth
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use(cors({
-  origin: [
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || [
     'https://collabora-production-1557.up.railway.app',
     'https://dmbp1.up.railway.app',
     'http://localhost:5173',
@@ -36,7 +50,7 @@ app.use(cors({
   ],
   credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' })); // Reduced from 50mb to 10mb for better protection
 
 // Serve frontend static files
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
@@ -99,29 +113,41 @@ const authenticateToken = (req: any, res: any, next: any) => {
 // --- ROUTES ---
 
 // 1. LOGIN
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req: Request, res: any) => {
   const { email, password } = req.body;
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(400).json({ error: 'Пользователь не найден' });
+    if (!user) return res.status(401).json({ error: 'Неверные учетные данные' });
 
     const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) return res.status(400).json({ error: 'Неверный пароль' });
+    if (!validPassword) return res.status(401).json({ error: 'Неверные учетные данные' });
+
+    if (!JWT_SECRET || JWT_SECRET === 'secret123') {
+        console.warn("WARNING: Using insecure JWT_SECRET");
+    }
 
     const token = jwt.sign({ id: user.id, email: user.email, role: user.role, name: user.name }, JWT_SECRET, { expiresIn: '24h' });
 
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (e) {
-    res.status(500).json({ error: 'Login failed' });
+    res.status(500).json({ error: 'Authentication failed' });
   }
 });
 
-// 2. CREATE USER (Admin only or setup)
-app.post('/api/users', async (req, res) => {
+// 2. CREATE USER (Admin only)
+app.post('/api/users', authenticateToken, async (req: any, res: any) => {
   try {
+    // Check for Admin role
+    if (req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Only admins can create users' });
+    }
+
     const { name, email, password, role } = req.body;
-    // Basic protection could be added here
+    
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+    }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return res.status(400).json({ error: 'Email уже занят' });
@@ -134,7 +160,7 @@ app.post('/api/users', async (req, res) => {
 
     res.json({ id: user.id, email: user.email });
   } catch (e) {
-    console.error(e);
+    console.error('User creation error:', e);
     res.status(500).json({ error: 'Ошибка создания пользователя' });
   }
 });
@@ -146,20 +172,17 @@ app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/metrics', authenticateToken, metricsRoutes);
 
 // 3. UPLOAD DOCUMENT
-app.post('/api/documents', authenticateToken, upload.single('file'), async (req: any, res: any) => {
+app.post('/api/documents', authenticateToken, standardUpload.single('file'), async (req: any, res: any) => {
   try {
     const { title } = req.body;
     const userId = req.user.id;
-
-    // Allow creating document without file (just editor)
-    // If file is present, create version. If not, just create doc.
     const file = req.file;
 
     const data: any = {
-        title: title || (file ? file.originalname : 'Новый документ'),
+        title: title || (file ? Buffer.from(file.originalname, 'latin1').toString('utf8') : 'Новый документ'),
         authorId: userId,
         status: 'DRAFT',
-        content: '', // Start empty or default
+        content: '',
     };
 
     if (file) {
@@ -176,7 +199,7 @@ app.post('/api/documents', authenticateToken, upload.single('file'), async (req:
     res.json(doc);
   } catch (error) {
     console.error('Upload Error:', error);
-    res.status(500).json({ error: 'Failed to create document', details: String(error) });
+    res.status(500).json({ error: 'Failed to create document' });
   }
 });
 
@@ -208,120 +231,7 @@ app.get('/api/documents/:id', authenticateToken, async (req: any, res: any) => {
   }
 });
 
-// GOOGLE DOCS INTEGRATION
-
-// 1. INIT GOOGLE SESSION (Upload & Permissions)
-app.post('/api/documents/:id/google/init', authenticateToken, async (req: any, res: any) => {
-    try {
-        const { id } = req.params;
-        const doc = await prisma.document.findUnique({
-            where: { id },
-            include: { versions: { orderBy: { version: 'desc' }, take: 1 } }
-        });
-
-        if (!doc) return res.status(404).json({ error: 'Document not found' });
-
-        // If already has googleFileId, return it (check if it exists on Drive?)
-        // Ideally we check if it is still valid, but for now just return it.
-        if (doc.googleFileId) {
-             return res.json({ googleFileId: doc.googleFileId });
-        }
-
-        const latestVersion = doc.versions[0];
-        if (!latestVersion) return res.status(400).json({ error: 'No file to edit' });
-
-        const filePath = latestVersion.filePath; // Absolute or relative? "uploads/..."
-        const absolutePath = path.resolve(filePath);
-
-        if (!fs.existsSync(absolutePath)) {
-             // Try to resolve relative to root or current dir
-             // The upload middleware saves to 'uploads' relative to CWD.
-             // Current CWD in backend is usually root of backend app.
-        }
-
-        console.log(`Uploading to Google Drive: ${doc.title}`);
-        const result = await GoogleDriveService.uploadFile(absolutePath, doc.title);
-
-        if (!result.id) throw new Error("Failed to get file ID from Google");
-
-        // Grant access
-        await GoogleDriveService.grantAccess(result.id);
-
-        // Save ID to DB
-        await prisma.document.update({
-            where: { id },
-            data: { googleFileId: result.id }
-        });
-
-        res.json({ googleFileId: result.id });
-    } catch (e) {
-        console.error("Google Init Error:", e);
-        res.status(500).json({ error: 'Failed to init Google Docs session' });
-    }
-});
-
-// 2. SYNC GOOGLE DOC (Download & Update Local)
-app.post('/api/documents/:id/google/sync', authenticateToken, async (req: any, res: any) => {
-    try {
-        const { id } = req.params;
-        const doc = await prisma.document.findUnique({
-            where: { id },
-            include: { versions: { orderBy: { version: 'desc' }, take: 1 } }
-        });
-
-        if (!doc || !doc.googleFileId) return res.status(404).json({ error: 'Document or Google Session not found' });
-
-        console.log(`Syncing from Google Drive: ${doc.googleFileId}`);
-        const buffer = await GoogleDriveService.exportFile(doc.googleFileId);
-
-        // Update local file
-        const latestVersion = doc.versions[0];
-        if (latestVersion) {
-            fs.writeFileSync(latestVersion.filePath, buffer);
-        } else {
-             // Should not happen if we uploaded it, but handle case?
-             // Create new file?
-        }
-
-        // Update timestamp
-        await prisma.document.update({
-            where: { id },
-            data: { updatedAt: new Date() }
-        });
-
-        res.json({ message: 'Synced successfully' });
-    } catch (e) {
-        console.error("Google Sync Error:", e);
-        res.status(500).json({ error: 'Failed to sync document' });
-    }
-});
-
-// 3. CLEANUP (Delete from Drive)
-app.post('/api/documents/:id/google/cleanup', authenticateToken, async (req: any, res: any) => {
-     try {
-        const { id } = req.params;
-        const doc = await prisma.document.findUnique({ where: { id } });
-
-        if (!doc || !doc.googleFileId) return res.json({ message: 'Nothing to clean' });
-
-        console.log(`Deleting from Google Drive: ${doc.googleFileId}`);
-        await GoogleDriveService.deleteFile(doc.googleFileId);
-
-        await prisma.document.update({
-            where: { id },
-            data: { googleFileId: null }
-        });
-
-        res.json({ message: 'Cleanup complete' });
-     } catch (e) {
-        console.error("Google Cleanup Error:", e);
-        // Even if delete fails, maybe we should clear the ID?
-        // Or keep it to retry? Let's clear it to avoid stuck state if file is gone.
-        // But if file is not gone, we leak it.
-        // Let's return error but not clear ID?
-        res.status(500).json({ error: 'Cleanup failed' });
-     }
-});
+// GOOGLE DOCS INTEGRATION REMOVED (UNIFIED CLEANUP)
 
 // ONLYOFFICE INTEGRATION
 

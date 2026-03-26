@@ -35,8 +35,6 @@ model Document {
   content   String?  @default("")
   status    String   @default("DRAFT") // DRAFT, ON_APPROVAL, APPROVED, REJECTED
 
-  googleFileId String? // Added for Google Docs integration
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
