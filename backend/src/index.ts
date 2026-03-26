@@ -30,7 +30,9 @@ const CALLBACK_URL = process.env.CALLBACK_URL || 'http://host.docker.internal:30
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow OnlyOffice/Collabora frames
-  contentSecurityPolicy: false, // OnlyOffice requires specific CSP or disabled for simplicity in dev
+  crossOriginEmbedderPolicy: false, // Compatibility with cross-origin assets
+  crossOriginOpenerPolicy: false,   // Compatibility with editor popups/frames
+  contentSecurityPolicy: false,     // OnlyOffice requires specific CSP or disabled for simplicity in dev
 }));
 
 // Rate limiting for auth
@@ -55,8 +57,8 @@ app.use(express.json({ limit: '10mb' })); // Reduced from 50mb to 10mb for bette
 // Serve frontend static files
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
-// Security: Disabled public static serving of uploads
-// app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Security: Re-enabled public static serving of uploads for document editor assets
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // WOPI Routes
 app.use('/api/wopi', wopiRoutes);
