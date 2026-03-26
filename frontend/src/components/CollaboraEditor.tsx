@@ -69,7 +69,7 @@ export const CollaboraEditor: React.FC<CollaboraEditorProps> = ({ documentId, to
         src={iframeSrc}
         title="Collabora Online Editor"
         style={{ width: '100%', height: '100%', border: 'none' }}
-        allow="autoplay; camera; microphone; display-capture"
+        allow="autoplay; camera; microphone; display-capture; autofocus"
       />
     </div>
   );

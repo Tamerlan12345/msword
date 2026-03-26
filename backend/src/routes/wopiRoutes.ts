@@ -13,7 +13,7 @@ router.get('/files/:id', checkFileInfo);
 router.get('/files/:id/contents', getFile);
 
 // PutFile
-router.post('/files/:id/contents', express.raw({ type: 'application/octet-stream', limit: '50mb' }), putFile);
+router.post('/files/:id/contents', express.raw({ type: '*/*', limit: '50mb' }), putFile);
 
 // Handle Lock (and other operations)
 router.post('/files/:id', handleLock);
