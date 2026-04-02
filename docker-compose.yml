@@ -18,7 +18,7 @@ services:
       # Важно: отключаем SSL внутри контейнера, так как Railway дает внешний SSL
       - extra_params=--o:ssl.enable=false --o:ssl.termination=true
       # Разрешаем встраивание ТОЛЬКО для вашего домена бэкенда/фронтенда
-      - aliasgroup1=https://dmbp.up.railway.app
+      - aliasgroup1=https://dmbp1.up.railway.app
       - username=admin
       - password=secretpassword
     ports:
@@ -35,10 +35,10 @@ services:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/sizdocflow
       JWT_SECRET: secret123
       PORT: 3000
-      BACKEND_URL: https://dmbp.up.railway.app
-      PUBLIC_URL: https://dmbp.up.railway.app
+      BACKEND_URL: https://dmbp1.up.railway.app
+      PUBLIC_URL: https://dmbp1.up.railway.app
       INTERNAL_WOPI_URL: http://backend:3000
-      COLLABORA_PUBLIC_URL: https://collabora-dmbp.up.railway.app
+      COLLABORA_PUBLIC_URL: https://ds.cic.kz/
       # Optional: keep for local dev or internal references if code uses them
       WOPI_HOST_URL: http://backend:3000
       COLLABORA_URL: http://collabora:9980
