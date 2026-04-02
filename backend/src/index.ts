@@ -24,9 +24,18 @@ const app = express();
 // const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
+const BACKEND_URL = process.env.BACKEND_URL;
+const COLLABORA_PUBLIC_URL = process.env.COLLABORA_PUBLIC_URL;
+const CALLBACK_URL = process.env.CALLBACK_URL;
+const UPLOAD_DIR = process.env.UPLOAD_DIR;
+
+if (!BACKEND_URL || !COLLABORA_PUBLIC_URL || !CALLBACK_URL || !UPLOAD_DIR) {
+  throw new Error("Критическая ошибка: Переменные окружения (BACKEND_URL, COLLABORA_PUBLIC_URL, CALLBACK_URL, UPLOAD_DIR) не заданы.");
+}
+
 const ONLYOFFICE_API_URL = process.env.ONLYOFFICE_API_URL || 'http://localhost:8081';
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || 'secret123';
-const CALLBACK_URL = process.env.CALLBACK_URL || 'http://host.docker.internal:3000/api/onlyoffice/callback';
+
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow OnlyOffice/Collabora frames
@@ -45,11 +54,11 @@ const authLimiter = rateLimit({
 
 app.use(cors({
   origin: process.env.ALLOWED_ORIGINS?.split(',') || [
-    'https://collabora-production-1557.up.railway.app',
-    'https://dmbp1.up.railway.app',
+    BACKEND_URL,
     'http://localhost:5173',
     'http://localhost:3000'
   ],
+
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' })); // Reduced from 50mb to 10mb for better protection
@@ -58,7 +67,8 @@ app.use(express.json({ limit: '10mb' })); // Reduced from 50mb to 10mb for bette
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
 // Security: Re-enabled public static serving of uploads for document editor assets
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(UPLOAD_DIR));
+
 
 // WOPI Routes
 app.use('/api/wopi', wopiRoutes);
@@ -68,13 +78,14 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Используем абсолютный путь, чтобы точно попасть в примонтированный volume
     // Если задана переменная окружения UPLOAD_DIR - используем её
-    const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../uploads');
+    const uploadDir = UPLOAD_DIR;
     
     // Создаем папку, если её нет (важно при первом запуске)
     if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
+
   },
   filename: (req, file, cb) => {
     // 1. Исправляем кодировку (чтобы русские названия не превращались в кракозябры)
@@ -273,9 +284,9 @@ app.get('/api/documents/:id/onlyoffice/config', authenticateToken, async (req: a
 
     // Security: Use WOPI GetFile endpoint instead of public uploads
     const wopiToken = await generateWopiToken(user.id, id);
-    // Use configured BACKEND_PUBLIC_URL if available, otherwise infer from callback or localhost
-    const publicUrl = process.env.BACKEND_PUBLIC_URL || baseUrl;
-    const fileUrl = `${publicUrl}/api/wopi/files/${id}/contents?access_token=${wopiToken}`;
+    // Use configured BACKEND_URL
+    const fileUrl = `${BACKEND_URL}/api/wopi/files/${id}/contents?access_token=${wopiToken}`;
+
 
     const config = {
       document: {

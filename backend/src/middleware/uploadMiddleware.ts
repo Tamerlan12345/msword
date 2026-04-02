@@ -5,12 +5,16 @@ import fs from 'fs';
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../../uploads');
+    const uploadDir = process.env.UPLOAD_DIR;
+    if (!uploadDir) {
+        return cb(new Error("UPLOAD_DIR environment variable is not defined"), "");
+    }
     if (!fs.existsSync(uploadDir)) {
         fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
+
   filename: (req, file, cb) => {
     const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
     const uniqueSuffix = Date.now() + '-' + crypto.randomBytes(8).toString('hex');

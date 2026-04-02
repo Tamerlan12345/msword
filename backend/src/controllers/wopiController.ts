@@ -7,9 +7,15 @@ import { prisma } from '../lib/prisma';
 
 // const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'secret123';
-const BACKEND_PUBLIC_URL = process.env.BACKEND_PUBLIC_URL || 'https://dmbp1.up.railway.app';
+const BACKEND_URL = process.env.BACKEND_URL;
+const COLLABORA_PUBLIC_URL = process.env.COLLABORA_PUBLIC_URL;
+
+if (!BACKEND_URL || !COLLABORA_PUBLIC_URL) {
+  throw new Error("Критическая ошибка: Переменные окружения для WOPI не заданы.");
+}
+
 const INTERNAL_WOPI_URL = process.env.INTERNAL_WOPI_URL || 'http://backend:3000';
-const COLLABORA_PUBLIC_URL = process.env.COLLABORA_PUBLIC_URL || 'http://localhost:9980';
+
 
 // Helper: Generate WOPI Token
 export const generateWopiToken = async (userId: string, documentId: string) => {
@@ -130,8 +136,8 @@ export const getIframeUrl = async (req: Request, res: Response) => {
     // Generate WOPI token
     const wopiToken = await generateWopiToken(user.id, id);
 
-    // WOPISrc - MUST use BACKEND_PUBLIC_URL so Collabora can reach us from outside
-    const wopiSrc = `${BACKEND_PUBLIC_URL}/api/wopi/files/${id}`;
+    // WOPISrc - MUST use BACKEND_URL so Collabora can reach us from outside
+    const wopiSrc = `${BACKEND_URL}/api/wopi/files/${id}`;
 
     // Construct full iframe URL
     // WOPISrc must be encoded
@@ -231,7 +237,7 @@ export const checkFileInfo = async (req: Request, res: Response) => {
             SupportsLocks: true,
             SupportsReviewing: true,
             DisableChangeTrackingRecord: false,
-            PostMessageOrigin: BACKEND_PUBLIC_URL,
+            PostMessageOrigin: BACKEND_URL,
             LastModifiedTime: doc.updatedAt.toISOString(),
         };
 
