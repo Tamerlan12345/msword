@@ -137,12 +137,14 @@ export const getIframeUrl = async (req: Request, res: Response) => {
     const wopiToken = await generateWopiToken(user.id, id);
 
     // WOPISrc - MUST use BACKEND_URL so Collabora can reach us from outside
-    const wopiSrc = `${BACKEND_URL}/api/wopi/files/${id}`;
+    const cleanBackendUrl = BACKEND_URL.endsWith('/') ? BACKEND_URL.slice(0, -1) : BACKEND_URL;
+    const wopiSrc = `${cleanBackendUrl}/api/wopi/files/${id}`;
 
     // Construct full iframe URL
     // WOPISrc must be encoded
     // The iframe src uses the PUBLIC Collabora URL so the user's browser can load it.
-    const url = `${COLLABORA_PUBLIC_URL}/browser/dist/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${wopiToken}&lang=ru&UiOptions=default_zoom_level=100`;
+    const cleanCollaboraUrl = COLLABORA_PUBLIC_URL.endsWith('/') ? COLLABORA_PUBLIC_URL.slice(0, -1) : COLLABORA_PUBLIC_URL;
+    const url = `${cleanCollaboraUrl}/browser/dist/cool.html?WOPISrc=${encodeURIComponent(wopiSrc)}&access_token=${wopiToken}&lang=ru&UiOptions=default_zoom_level=100`;
 
     res.json({ url });
   } catch (error) {

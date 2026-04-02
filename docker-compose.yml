@@ -15,10 +15,9 @@ services:
     image: collabora/code
     restart: always
     environment:
-      # Важно: отключаем SSL внутри контейнера, так как Railway дает внешний SSL
-      - extra_params=--o:ssl.enable=false --o:ssl.termination=true
-      # Разрешаем встраивание ТОЛЬКО для вашего домена бэкенда/фронтенда
-      - aliasgroup1=https://dmbp1.up.railway.app
+      # Разрешаем встраивание для вашего домена бэкенда и решаем 400 ошибку
+      - aliasgroup1=https://dmbp1.up.railway.app:443
+      - extra_params=--o:ssl.enable=false --o:ssl.termination=true --o:net.frame_ancestors=https://dmbp1.up.railway.app
       - username=admin
       - password=secretpassword
     ports:
