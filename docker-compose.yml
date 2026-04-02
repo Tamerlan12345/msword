@@ -36,10 +36,20 @@ services:
       JWT_SECRET: secret123
       PORT: 3000
       BACKEND_URL: https://dmbp1.up.railway.app
+<<<<<<< HEAD
       COLLABORA_PUBLIC_URL: https://ds.cic.kz/
       CALLBACK_URL: https://dmbp1.up.railway.app/api/onlyoffice/callback
       UPLOAD_DIR: /app/uploads
 
+=======
+      PUBLIC_URL: https://dmbp1.up.railway.app
+      INTERNAL_WOPI_URL: http://backend:3000
+      COLLABORA_PUBLIC_URL: https://ds.cic.kz/
+      # Optional: keep for local dev or internal references if code uses them
+      WOPI_HOST_URL: http://backend:3000
+      COLLABORA_URL: http://collabora:9980
+      UPLOAD_DIR: /data_storage
+>>>>>>> 88898acc9e716421d665db4622a82f219e1b57ca
     volumes:
       - ./uploads:/app/uploads
       - ./frontend/dist:/frontend/dist
