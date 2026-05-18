@@ -10,6 +10,8 @@ export const CollaboraEditor: React.FC<CollaboraEditorProps> = ({ documentId, to
   const [iframeSrc, setIframeSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Capture Collabora origin to restrict postMessage target (avoid wildcard '*')
+  const collaboraOriginRef = useRef<string>('*');
 
   useEffect(() => {
     const fetchUrl = async () => {
@@ -27,6 +29,17 @@ export const CollaboraEditor: React.FC<CollaboraEditorProps> = ({ documentId, to
     };
     fetchUrl();
   }, [documentId, token]);
+
+  // Update Collabora origin ref whenever iframeSrc changes
+  useEffect(() => {
+    if (iframeSrc) {
+      try {
+        collaboraOriginRef.current = new URL(iframeSrc).origin;
+      } catch {
+        collaboraOriginRef.current = '*';
+      }
+    }
+  }, [iframeSrc]);
 
   // Zoom fix: Listen for document load and force 100% zoom
   useEffect(() => {
@@ -47,7 +60,7 @@ export const CollaboraEditor: React.FC<CollaboraEditorProps> = ({ documentId, to
            };
 
            if (iframeRef.current && iframeRef.current.contentWindow) {
-             iframeRef.current.contentWindow.postMessage(JSON.stringify(zoomCmd), '*');
+             iframeRef.current.contentWindow.postMessage(JSON.stringify(zoomCmd), collaboraOriginRef.current);
            }
         }
       } catch (e) {

@@ -36,6 +36,10 @@ if (!BACKEND_URL || !COLLABORA_PUBLIC_URL || !CALLBACK_URL || !UPLOAD_DIR) {
 const ONLYOFFICE_API_URL = process.env.ONLYOFFICE_API_URL || 'http://localhost:8081';
 const ONLYOFFICE_JWT_SECRET = process.env.ONLYOFFICE_JWT_SECRET || 'secret123';
 
+if (!process.env.ONLYOFFICE_JWT_SECRET || ONLYOFFICE_JWT_SECRET === 'secret123') {
+    console.warn("WARNING: Using insecure ONLYOFFICE_JWT_SECRET. Set ONLYOFFICE_JWT_SECRET env variable for production.");
+}
+
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow OnlyOffice/Collabora frames
@@ -66,8 +70,7 @@ app.use(express.json({ limit: '10mb' })); // Reduced from 50mb to 10mb for bette
 // Serve frontend static files
 const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
-// Security: Re-enabled public static serving of uploads for document editor assets
-app.use('/uploads', express.static(UPLOAD_DIR));
+// Security: /uploads is NOT served publicly. Use /api/documents/:id/download (authenticated) or WOPI endpoint instead.
 
 
 // WOPI Routes
